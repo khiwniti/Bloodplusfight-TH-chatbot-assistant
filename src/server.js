@@ -38,15 +38,18 @@ app.get('/', (req, res) => {
 });
 
 // Start the server
-const PORT = config.server.port;
+const PORT = process.env.PORT || 3000;
+const HOST = process.env.NODE_ENV === 'production' ? '0.0.0.0' : 'localhost';
 
-const server = app.listen(PORT, async () => {
-  console.log(`Server running on port ${PORT}`);
+const server = app.listen(PORT, HOST, async () => {
+  console.log(`Server running on ${HOST}:${PORT}`);
   const isProduction = process.env.NODE_ENV === 'production';
   console.log(`Environment: ${isProduction ? 'Production' : 'Development'}`);
   
   if (!isProduction) {
     console.log(`Local URL: http://localhost:${PORT}`);
+  } else {
+    console.log(`Deployed on Render`);
   }
 });
 
