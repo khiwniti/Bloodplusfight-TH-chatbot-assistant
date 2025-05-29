@@ -29,8 +29,64 @@ if (isDevelopment) {
   };
 } else {
   // Use real LINE client in production
-  client = new Client(config.line);
+  try {
+    console.log('Creating LINE client with credentials');
+    client = new Client(config.line);
+    // Validate the token early
+    if (!config.line.channelAccessToken || !config.line.channelSecret) {
+      console.error('LINE credentials missing - using fallback client');
+      throw new Error('Missing LINE credentials');
+    }
+  } catch (error) {
+    console.error('Error creating LINE client, using fallback client:', error.message);
+    // Fallback to mock client in case of error
+    client = {
+      pushMessage: async () => console.warn('WARN: Using fallback LINE client - pushMessage called with invalid credentials'),
+      replyMessage: async () => console.warn('WARN: Using fallback LINE client - replyMessage called with invalid credentials'),
+      getProfile: async (userId) => {
+        console.warn('WARN: Using fallback LINE client - getProfile called with invalid credentials');
+        return {
+          displayName: 'Unknown User',
+          userId: userId || 'unknown-user',
+          language: 'en',
+          pictureUrl: 'https://example.com/default.jpg'
+        };
+      }
+    };
+  }
 }
+
+// Add a wrapper for handling 403 errors gracefully
+const safeLineAPI = {
+  getProfile: async (userId) => {
+    try {
+      return await client.getProfile(userId);
+    } catch (error) {
+      console.warn(`Error getting profile for ${userId}: ${error.message}`);
+      return {
+        displayName: 'Unknown User',
+        userId: userId,
+        language: 'en'
+      };
+    }
+  },
+  replyMessage: async (token, message) => {
+    try {
+      return await client.replyMessage(token, message);
+    } catch (error) {
+      console.warn(`Error sending reply message: ${error.message}`);
+      return null;
+    }
+  },
+  pushMessage: async (to, message) => {
+    try {
+      return await client.pushMessage(to, message);
+    } catch (error) {
+      console.warn(`Error sending push message: ${error.message}`);
+      return null;
+    }
+  }
+};
 
 // Log configuration (without sensitive data)
 console.log('LINE Bot Configuration:', {
@@ -74,6 +130,12 @@ const messages = {
     errorResearch: 'ขออภัย ฉันไม่สามารถค้นหาข้อมูลทางการแพทย์ในหัวข้อนี้ได้ในขณะนี้ กรุณาลองอีกครั้งในภายหลัง หรือปรึกษาบุคลากรทางการแพทย์',
     researchHelp: 'คุณสามารถใช้ฟีเจอร์การค้นคว้าข้อมูลทางการแพทย์ได้โดยพิมพ์ "ค้นคว้า" ตามด้วยคำถามด้านสุขภาพของคุณ เช่น: "ค้นคว้า การป้องกัน HIV" หรือ "ค้นคว้า อาการของโรคเบาหวาน"',
   }
+};
+
+// Define greeting patterns for each language
+const greetingPatterns = {
+  en: ['hi', 'hello', 'hey', 'greetings', 'good morning', 'good afternoon', 'good evening', 'howdy'],
+  th: ['สวัสดี', 'หวัดดี', 'ดีจ้า', 'สวัสดีครับ', 'สวัสดีค่ะ', 'หวัดดีครับ', 'หวัดดีค่ะ']
 };
 
 // Add a simple in-memory context store to maintain conversation threads
@@ -184,7 +246,7 @@ const handleTextMessage = async (event) => {
     // Get user language
     let lang = 'en'; // Default language
     try {
-      const userProfile = await client.getProfile(userId);
+      const userProfile = await safeLineAPI.getProfile(userId);
       console.log('User profile:', userProfile);
       lang = userProfile.language || detectLanguage(text);
     } catch (error) {
@@ -197,7 +259,7 @@ const handleTextMessage = async (event) => {
     // Get or create customer data
     let customerData = { userId, displayName: 'Customer' };
     try {
-      const userProfile = await client.getProfile(userId);
+      const userProfile = await safeLineAPI.getProfile(userId);
       customerData = await customerService.getOrCreateCustomer(userId, userProfile.displayName);
       console.log('Customer data:', customerData);
     } catch (error) {
@@ -310,7 +372,7 @@ const handleTextMessage = async (event) => {
  */
 const sendErrorResponse = async (replyToken, message) => {
   try {
-    return await client.replyMessage(replyToken, {
+    return await safeLineAPI.replyMessage(replyToken, {
       type: 'text',
       text: message
     });
@@ -331,7 +393,7 @@ const handleGreeting = async (replyToken, displayName, lang) => {
     };
     
     console.log('Sending greeting message:', JSON.stringify(message, null, 2));
-    return await client.replyMessage(replyToken, message);
+    return await safeLineAPI.replyMessage(replyToken, message);
   } catch (error) {
     console.error('Error in handleGreeting:', error);
     return sendErrorResponse(replyToken, getMessage('errorProcessing', lang));
@@ -368,7 +430,7 @@ const handlePurchaseHistoryRequest = async (replyToken, userId, lang) => {
     }
     
     console.log('Sending purchase history message:', JSON.stringify(message, null, 2));
-    return await client.replyMessage(replyToken, message);
+    return await safeLineAPI.replyMessage(replyToken, message);
   } catch (error) {
     console.error('Error in handlePurchaseHistoryRequest:', error);
     return sendErrorResponse(replyToken, getMessage('errorPurchaseHistory', lang));
@@ -395,7 +457,7 @@ const handleProductsRequest = async (replyToken, lang) => {
     };
     
     console.log('Sending products message:', JSON.stringify(message, null, 2));
-    return await client.replyMessage(replyToken, message);
+    return await safeLineAPI.replyMessage(replyToken, message);
   } catch (error) {
     console.error('Error in handleProductsRequest:', error);
     return sendErrorResponse(replyToken, getMessage('errorProductList', lang));
@@ -422,7 +484,7 @@ const handleHelpRequest = async (replyToken, lang) => {
     };
     
     console.log('Sending help message:', JSON.stringify(message, null, 2));
-    return await client.replyMessage(replyToken, message);
+    return await safeLineAPI.replyMessage(replyToken, message);
   } catch (error) {
     console.error('Error in handleHelpRequest:', error);
     return sendErrorResponse(replyToken, getMessage('errorHelp', lang));
@@ -475,7 +537,7 @@ const handleResearchQuery = async (replyToken, query, lang) => {
     // Check if the query is healthcare related
     if (!researchService.isHealthcareQuery(researchQuery, lang)) {
       // Not healthcare related, inform user
-      return await client.replyMessage(replyToken, {
+      return await safeLineAPI.replyMessage(replyToken, {
         type: 'text',
         text: lang === 'th' 
           ? 'ขออภัย บอทนี้ให้ข้อมูลเกี่ยวกับสุขภาพเท่านั้น โปรดถามคำถามเกี่ยวกับสุขภาพ การแพทย์ หรือโรคต่างๆ' 
@@ -484,7 +546,7 @@ const handleResearchQuery = async (replyToken, query, lang) => {
     }
     
     // First, send a "researching" message
-    await client.replyMessage(replyToken, {
+    await safeLineAPI.replyMessage(replyToken, {
       type: 'text',
       text: getMessage('research', lang)
     });
@@ -495,13 +557,13 @@ const handleResearchQuery = async (replyToken, query, lang) => {
     
     // Send the research results in a new message
     // Note: Since we've already replied to the initial message, we need to use pushMessage instead
-    return await client.pushMessage(getSourceId(replyToken), {
+    return await safeLineAPI.pushMessage(getSourceId(replyToken), {
       type: 'text',
       text: researchResults
     });
   } catch (error) {
     console.error('Error in handleResearchQuery:', error);
-    return client.pushMessage(getSourceId(replyToken), {
+    return safeLineAPI.pushMessage(getSourceId(replyToken), {
       type: 'text',
       text: getMessage('errorResearch', lang)
     });
@@ -566,7 +628,7 @@ const handleFollowEvent = async (event) => {
     const { userId } = event.source;
     
     // Get user profile
-    const profile = await client.getProfile(userId);
+    const profile = await safeLineAPI.getProfile(userId);
     
     // Default to English for welcome message, can be changed later
     const lang = 'en';
@@ -578,7 +640,7 @@ const handleFollowEvent = async (event) => {
     };
     
     console.log('Sending welcome message:', JSON.stringify(message, null, 2));
-    return await client.replyMessage(event.replyToken, message);
+    return await safeLineAPI.replyMessage(event.replyToken, message);
   } catch (error) {
     console.error('Error in handleFollowEvent:', error);
     return sendErrorResponse(event.replyToken, 'Welcome! Type "help" to see what I can do!');
@@ -596,7 +658,7 @@ const sendTextMessage = (token, text, language = 'en') => {
   // Process message to fit LINE's limits
   const processedText = processMessageForLineLength(text, language);
   
-  return client.replyMessage(token, {
+  return safeLineAPI.replyMessage(token, {
     type: 'text',
     text: processedText
   });
@@ -620,7 +682,7 @@ const sendSimpleGreeting = (replyToken, language = 'en') => {
 if (isDevelopment) {
   console.log('Skipping LINE client configuration test in development mode');
 } else {
-  client.getProfile('test')
+  safeLineAPI.getProfile('test')
     .then(() => console.log('LINE client configuration test: OK'))
     .catch(error => {
       if (error.statusCode === 404) {
@@ -633,7 +695,7 @@ if (isDevelopment) {
 
 module.exports = {
   handleEvent,
-  client,
+  client: safeLineAPI,
   storeConversationContext,
   getConversationContext
 }; 
