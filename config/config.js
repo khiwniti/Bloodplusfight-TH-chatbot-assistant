@@ -1,0 +1,46 @@
+require('dotenv').config();
+
+// Validate LINE config
+const channelAccessToken = process.env.CHANNEL_ACCESS_TOKEN;
+const channelSecret = process.env.CHANNEL_SECRET;
+
+if (!channelAccessToken || channelAccessToken === 'your_line_channel_access_token_here') {
+  console.error('⚠️ WARNING: CHANNEL_ACCESS_TOKEN is not set properly in .env file');
+  console.error('Please set your LINE Channel Access Token in the .env file');
+}
+
+if (!channelSecret || channelSecret === 'your_line_channel_secret_here') {
+  console.error('⚠️ WARNING: CHANNEL_SECRET is not set properly in .env file');
+  console.error('Please set your LINE Channel Secret in the .env file');
+}
+
+// Export configuration
+const config = {
+  line: {
+    channelAccessToken,
+    channelSecret,
+  },
+  server: {
+    port: process.env.PORT || 3000,
+  },
+  openRouter: {
+    apiKey: process.env.OPENROUTER_API_KEY || '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',
+    model: process.env.OPENROUTER_MODEL || 'deepseek/deepseek-r1-0528:free',
+    httpReferer: process.env.OPENROUTER_HTTP_REFERER || 'https://line-bot-app.com',
+    xTitle: process.env.OPENROUTER_X_TITLE || 'LINE Bot Healthcare',
+  },
+  research: {
+    enabled: process.env.ENABLE_RESEARCH === 'true' || true,
+    maxResults: parseInt(process.env.RESEARCH_MAX_RESULTS || '3', 10),
+    defaultLang: process.env.RESEARCH_DEFAULT_LANG || 'en',
+    searchTimeout: parseInt(process.env.RESEARCH_TIMEOUT || '5000', 10),
+    autoResearch: process.env.AUTO_RESEARCH === 'true' || true,
+  }
+};
+
+console.log('Server Configuration:', {
+  port: config.server.port,
+  researchEnabled: config.research.enabled
+});
+
+module.exports = config; 
