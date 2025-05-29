@@ -6,8 +6,31 @@ const researchService = require('./researchService');
 const config = require('../../config/config');
 const customerService = require('./customerService');
 
-// Create a new LINE SDK client
-const client = new Client(config.line);
+// Check if we're in development mode
+const isDevelopment = process.env.NODE_ENV !== 'production';
+
+// Create a LINE SDK client or a mock client for development
+let client;
+
+if (isDevelopment) {
+  console.log('Running in development mode with mock LINE client');
+  // Create a mock client with fake methods for development
+  client = {
+    // Mock LINE client methods with dummy implementations
+    pushMessage: async () => console.log('Mock: Push message called'),
+    replyMessage: async () => console.log('Mock: Reply message called'),
+    getProfile: async (userId) => ({
+      displayName: 'Test User',
+      userId: userId || 'test-user-id',
+      language: 'en',
+      pictureUrl: 'https://example.com/profile.jpg'
+    }),
+    // Add other LINE client methods as needed
+  };
+} else {
+  // Use real LINE client in production
+  client = new Client(config.line);
+}
 
 // Log configuration (without sensitive data)
 console.log('LINE Bot Configuration:', {
@@ -594,15 +617,19 @@ const sendSimpleGreeting = (replyToken, language = 'en') => {
 };
 
 // Test the line configuration
-client.getProfile('test')
-  .then(() => console.log('LINE client configuration test: OK'))
-  .catch(error => {
-    if (error.statusCode === 404) {
-      console.log('LINE client configuration seems valid (404 is expected for test user)');
-    } else {
-      console.error('LINE client configuration test failed:', error.message);
-    }
-  });
+if (isDevelopment) {
+  console.log('Skipping LINE client configuration test in development mode');
+} else {
+  client.getProfile('test')
+    .then(() => console.log('LINE client configuration test: OK'))
+    .catch(error => {
+      if (error.statusCode === 404) {
+        console.log('LINE client configuration seems valid (404 is expected for test user)');
+      } else {
+        console.error('LINE client configuration test failed:', error.message);
+      }
+    });
+}
 
 module.exports = {
   handleEvent,

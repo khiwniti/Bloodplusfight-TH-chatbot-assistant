@@ -1,8 +1,8 @@
 require('dotenv').config();
 
 // Validate LINE config
-const channelAccessToken = process.env.CHANNEL_ACCESS_TOKEN;
-const channelSecret = process.env.CHANNEL_SECRET;
+const channelAccessToken = process.env.CHANNEL_ACCESS_TOKEN || 'a1949cec4782b6fcc9308daf21f51720';
+const channelSecret = process.env.CHANNEL_SECRET || 'iEOPs7FpkuS1KA2amgRQXsIdJvkOjrECxBwj1OhFZikwmuamNtXkjocHoPXuxMw/7fEGvmbLgRKKYHdwuamiBqN3VYYkeCTDT3U9FwipGyXKqE7v41DT57V+Q6AvgMK3DBUE954JvCaKHdIM5b3L9QdB04t89/1O/w1cDnyilFU=';
 
 if (!channelAccessToken || channelAccessToken === 'your_line_channel_access_token_here') {
   console.error('⚠️ WARNING: CHANNEL_ACCESS_TOKEN is not set properly in .env file');
