@@ -23,6 +23,9 @@ const config = {
   server: {
     port: process.env.PORT || 3000,
   },
+  mongodb: {
+    uri: process.env.MONGODB_URI || 'mongodb://localhost:27017/linechatbot',
+  },
   openRouter: {
     apiKey: process.env.OPENROUTER_API_KEY || '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',
     model: process.env.OPENROUTER_MODEL || 'deepseek/deepseek-r1-0528:free',
@@ -41,6 +44,12 @@ const config = {
 console.log('Server Configuration:', {
   port: config.server.port,
   researchEnabled: config.research.enabled
+});
+
+// Only log LINE configuration validation, not the actual tokens
+console.log('LINE Bot Configuration:', {
+  hasChannelSecret: !!config.line.channelSecret,
+  hasChannelAccessToken: !!config.line.channelAccessToken
 });
 
 module.exports = config; 

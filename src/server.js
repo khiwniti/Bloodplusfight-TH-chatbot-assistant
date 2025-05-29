@@ -1,9 +1,16 @@
 const express = require('express');
 const cors = require('cors');
 const config = require('../config/config');
+const connectDB = require('../config/db');
 const webhookRoutes = require('./routes/webhook');
 
-// Skip MongoDB connection
+// Connect to MongoDB in production or if explicitly enabled
+const shouldConnectDB = process.env.NODE_ENV === 'production' || process.env.USE_MONGODB === 'true';
+if (shouldConnectDB) {
+  connectDB();
+} else {
+  console.log('MongoDB connection skipped');
+}
 
 const app = express();
 
@@ -35,13 +42,12 @@ const PORT = config.server.port;
 
 const server = app.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`);
-  console.log(`Local URL: http://localhost:${PORT}`);
-  console.log(`To connect your LINE bot, use ngrok or a similar service to expose your local server.`);
-  console.log(`You can start ngrok manually with: ngrok http ${PORT}`);
-  console.log(`Then set the webhook URL in LINE Developer Console to: https://YOUR-NGROK-URL/webhook`);
+  const isProduction = process.env.NODE_ENV === 'production';
+  console.log(`Environment: ${isProduction ? 'Production' : 'Development'}`);
   
-  // We're not using the built-in ngrok integration anymore
-  // as it's causing connection issues
+  if (!isProduction) {
+    console.log(`Local URL: http://localhost:${PORT}`);
+  }
 });
 
 // Handle graceful shutdown
