@@ -1,27 +1,5 @@
 const app = require('./app');
 const config = require('../config/config');
-const connectDB = require('../config/db');
-
-// Connect to MongoDB in production or if explicitly enabled
-const shouldConnectDB = process.env.NODE_ENV === 'production' || process.env.USE_MONGODB === 'true';
-if (shouldConnectDB) {
-  try {
-    console.log('Attempting to connect to MongoDB...');
-    connectDB()
-      .then(() => {
-        console.log('MongoDB connected successfully');
-      })
-      .catch(err => {
-        console.error('MongoDB connection failed, but continuing without database:', err.message);
-        console.log('The application will work with limited functionality (no user data persistence)');
-      });
-  } catch (error) {
-    console.error('Error initializing MongoDB connection:', error.message);
-    console.log('Continuing without database connection');
-  }
-} else {
-  console.log('MongoDB connection skipped - running in database-less mode');
-}
 
 // Start the server
 const PORT = process.env.PORT || 3000;

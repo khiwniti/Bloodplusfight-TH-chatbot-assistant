@@ -7,7 +7,8 @@
 const axios = require('axios');
 const config = require('../../config/config');
 const cheerio = require('cheerio');
-const openRouterService = require('./openRouterService');
+const deepSeekService = require('./deepSeekService');
+const healthcareService = require('./healthcareService');
 
 // Healthcare-focused search keywords for better search results
 const healthcareKeywords = {
@@ -15,17 +16,13 @@ const healthcareKeywords = {
     general: ['medical', 'healthcare', 'health', 'treatment', 'prevention', 'symptoms', 'diagnosis', 'cure'],
     diseases: ['disease', 'condition', 'disorder', 'syndrome', 'infection', 'virus', 'bacteria'],
     symptoms: ['symptoms', 'signs', 'indication', 'pain', 'discomfort', 'feeling'],
-    treatments: ['treatment', 'medication', 'drug', 'therapy', 'procedure', 'management', 'medicine'],
-    prevention: ['prevention', 'avoid', 'protect', 'reduce risk', 'preventive measures', 'vaccination'],
-    providers: ['doctor', 'hospital', 'clinic', 'specialist', 'physician', 'healthcare provider']
+    treatments: ['treatment', 'medication', 'drug', 'therapy', 'procedure', 'management', 'cure']
   },
   th: {
-    general: ['การแพทย์', 'สุขภาพ', 'การรักษา', 'การป้องกัน', 'อาการ', 'การวินิจฉัย', 'รักษา'],
-    diseases: ['โรค', 'อาการ', 'ความผิดปกติ', 'กลุ่มอาการ', 'การติดเชื้อ', 'ไวรัส', 'แบคทีเรีย'],
-    symptoms: ['อาการ', 'สัญญาณ', 'อาการบ่งชี้', 'ความเจ็บปวด', 'ความไม่สบาย', 'ความรู้สึก'],
-    treatments: ['การรักษา', 'ยา', 'ยารักษา', 'การบำบัด', 'กระบวนการ', 'การจัดการ', 'ยา'],
-    prevention: ['การป้องกัน', 'หลีกเลี่ยง', 'ป้องกัน', 'ลดความเสี่ยง', 'มาตรการป้องกัน', 'การฉีดวัคซีน'],
-    providers: ['หมอ', 'โรงพยาบาล', 'คลินิก', 'ผู้เชี่ยวชาญ', 'แพทย์', 'ผู้ให้บริการด้านสุขภาพ']
+    general: ['สุขภาพ', 'การรักษา', 'อาการ', 'ป้องกัน', 'วินิจฉัย', 'รักษา'],
+    diseases: ['โรค', 'ภาวะ', 'อาการ', 'การติดเชื้อ', 'ไวรัส', 'แบคทีเรีย'],
+    symptoms: ['อาการ', 'สัญญาณ', 'ความเจ็บปวด', 'ไม่สบาย', 'ความรู้สึก'],
+    treatments: ['การรักษา', 'ยา', 'การบำบัด', 'ขั้นตอน', 'การจัดการ', 'การดูแล']
   }
 };
 
@@ -122,10 +119,6 @@ const enhanceHealthcareQuery = (query, lang = 'en') => {
     category = 'symptoms';
   } else if (containsKeywords(lowerQuery, keywords.treatments, lang)) {
     category = 'treatments';
-  } else if (containsKeywords(lowerQuery, keywords.prevention, lang)) {
-    category = 'prevention';
-  } else if (containsKeywords(lowerQuery, keywords.providers, lang)) {
-    category = 'providers';
   }
   
   // Get relevant keywords for the category
@@ -352,7 +345,7 @@ const researchTopic = async (query, lang = 'en') => {
     // Combine the relevant information
     const combinedContent = validContents.join('\n\n');
     
-    // Generate a response using OpenRouter to summarize the research
+    // Generate a response using DeepSeek to summarize the research
     console.log('Generating summarized research response');
     
     let systemPrompt;
@@ -378,10 +371,10 @@ For medical information, reference the latest scientific data and recommendation
 Maintain a professional, trustworthy tone and provide objective information without personal opinions.`;
     }
     
-    const researchResponse = await openRouterService.generateCustomResponse(
-      query, 
-      combinedContent,
-      systemPrompt
+    // Use deepSeekService.generateResponse for summarization
+    const researchResponse = await deepSeekService.generateResponse(
+      `${systemPrompt}\n\n${combinedContent}`,
+      { language: lang }
     );
     
     // Add disclaimer
@@ -398,29 +391,16 @@ Maintain a professional, trustworthy tone and provide objective information with
   }
 };
 
-/**
- * Verify if a query is healthcare-related
- * @param {string} query - Query to check
- * @param {string} lang - Language code
- * @returns {boolean} - True if healthcare-related
- */
-const isHealthcareQuery = (query, lang = 'en') => {
-  const lowerQuery = query.toLowerCase();
-  const keywords = healthcareKeywords[lang] || healthcareKeywords.en;
-  
-  // Check all keyword categories
-  for (const category in keywords) {
-    if (containsKeywords(lowerQuery, keywords[category], lang)) {
-      return true;
-    }
-  }
-  
-  return false;
-};
+// Replace any openRouterService.generateCustomResponse with deepSeekService.generateResponse
+async function summarizeResearchTopic(userMessage, context) {
+  // ... existing code ...
+  return deepSeekService.generateResponse(userMessage, context);
+}
 
 module.exports = {
   researchTopic,
   performWebSearch,
   extractContentFromUrl,
-  isHealthcareQuery
+  isHealthcareQuery: healthcareService.isHealthcareQuery,
+  summarizeResearchTopic
 }; 

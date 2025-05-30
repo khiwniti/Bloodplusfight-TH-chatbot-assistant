@@ -1,6 +1,5 @@
 const { Client } = require('@line/bot-sdk');
 const productService = require('./productService');
-const openRouterService = require('./openRouterService');
 const healthcareService = require('./healthcareService');
 const researchService = require('./researchService');
 const customerService = require('./customerService');
@@ -10,9 +9,8 @@ const config = require('../../config/config');
 const analyticsService = require('./analyticsService');
 const deepSeekService = require('./deepSeekService');
 
-// Choose the AI service based on configuration
-const useDeepSeekAPI = process.env.USE_DEEPSEEK_API === 'true';
-const aiService = useDeepSeekAPI ? deepSeekService : openRouterService;
+// Always use DeepSeek for AI
+const aiService = deepSeekService;
 
 // Create a simple logger if the logger service is not available
 const logger = {
@@ -502,7 +500,7 @@ const handleEvent = async (event) => {
     if (isHealthcareRelated) {
       customerContext.healthcareContext = {
         isHealthcareQuery: true,
-        topics: detectHealthcareTopics(userMessage, detectedLang)
+        topics: healthcareService.detectHealthcareTopics(userMessage, detectedLang)
       };
     }
     
@@ -523,50 +521,13 @@ const handleEvent = async (event) => {
         aiService.generateResponse(userMessage, customerContext),
         new Promise((_, reject) => 
           setTimeout(() => reject(new Error('AI response timeout')), 
-          config.limits.aiResponseTimeout || 10000)
+          config.limits.aiResponseTimeout || 15000)
         )
       ]);
-      
-      // Log successful AI generation if analytics is enabled
-      if (config.features.enableAnalytics) {
-        safeAnalytics.logBotActivity(userId, userMessage, aiResponse, true);
-        safeAnalytics.logApiCall('AI', 'generateResponse', 'success', {
-          userId,
-          responseLength: aiResponse.length
-        });
-      }
+      logger.info('DeepSeek API response received successfully');
     } catch (error) {
       logger.error('Error generating AI response:', error);
-      
-      // Check if this is a rate limit error
-      const isRateLimit = error.message && (
-        error.message.includes('429') || 
-        error.message.includes('rate limit') || 
-        error.message.includes('too many requests')
-      );
-      
-      // Log the API failure with specific error type
-      if (config.features.enableAnalytics) {
-        safeAnalytics.logFailedApiCall(userId, userMessage, error);
-        safeAnalytics.logApiCall('AI', 'generateResponse', isRateLimit ? 'rate_limited' : 'error', {
-          userId,
-          errorMessage: error.message
-        });
-      }
-      
-      // Get appropriate fallback response (different for rate limit vs. other errors)
-      if (isRateLimit) {
-        aiResponse = detectedLang === 'th' 
-          ? 'ขออภัย ระบบกำลังมีการใช้งานสูง โปรดลองอีกครั้งในอีกสักครู่' 
-          : 'Sorry, the system is currently experiencing high traffic. Please try again in a moment.';
-      } else {
-        aiResponse = fallbackResponseService.getFallbackResponse(detectedLang, userMessage);
-      }
-      
-      // Log fallback response usage if analytics is enabled
-      if (config.features.enableAnalytics) {
-        safeAnalytics.logBotActivity(userId, userMessage, aiResponse, false);
-      }
+      aiResponse = await fallbackResponseService.getFallbackResponse(detectedLang, userMessage);
     }
     
     // Add AI response to conversation
@@ -829,53 +790,13 @@ const handleCommand = async (text, userId, replyToken, language, conversation) =
   return true;
 };
 
-/**
- * Detect healthcare topics in a message
- * @param {string} message - User message
- * @param {string} lang - Language code
- * @returns {Array<string>} Detected topics
- */
-const detectHealthcareTopics = (message, lang) => {
-  const topics = [];
-  const lowerMessage = message.toLowerCase();
-  
-  // HIV-related keywords
-  if (/hiv|เอชไอวี|aids|เอดส์/.test(lowerMessage)) {
-    topics.push('hiv');
-  }
-  
-  // STD-related keywords
-  if (/std|sti|sexually transmitted|โรคติดต่อทางเพศ|กามโรค/.test(lowerMessage)) {
-    topics.push('std');
-  }
-  
-  // Prevention-related keywords
-  if (/prevent|protect|condom|ป้องกัน|ถุงยาง|การคุมกำเนิด/.test(lowerMessage)) {
-    topics.push('prevention');
-  }
-  
-  // Testing-related keywords
-  if (/test|check|screen|ตรวจ|การตรวจ|คัดกรอง/.test(lowerMessage)) {
-    topics.push('testing');
-  }
-  
-  // Treatment-related keywords
-  if (/treat|cure|medicine|drug|therapy|รักษา|ยา|การบำบัด/.test(lowerMessage)) {
-    topics.push('treatment');
-  }
-  
-  // If no specific topics detected but it's a healthcare query
-  if (topics.length === 0) {
-    topics.push('general_healthcare');
-  }
-  
-  return topics;
-};
-
 // Export the main event handler and any other public functions
 module.exports = {
   handleEvent,
   detectLanguage,
   isGreeting,
-  handleCommand
+  handleCommand,
+  safeReplyMessage,
+  safePushMessage,
+  safeGetProfile
 };

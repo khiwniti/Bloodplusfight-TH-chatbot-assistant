@@ -155,151 +155,47 @@ const healthcareKnowledge = {
   }
 };
 
-/**
- * Healthcare keywords for detecting healthcare-related queries
- */
-const healthcareKeywords = {
-  en: [
-    'hiv', 'aids', 'std', 'sti', 'sexual', 'condom', 'prep', 'pep', 'clinic',
-    'test', 'symptom', 'treatment', 'prevention', 'transmission', 'herpes',
-    'chlamydia', 'gonorrhea', 'syphilis', 'hpv', 'infection', 'disease',
-    'sexual health', 'unprotected', 'exposure', 'vaccine', 'support', 'stigma',
-    'what is hiv', 'define hiv', 'meaning of hiv', 'explain hiv'
-  ],
-  th: [
-    'เอชไอวี', 'เอดส์', 'โรคติดต่อทางเพศสัมพันธ์', 'เพศสัมพันธ์', 'ถุงยาง', 'ยาป้องกัน',
-    'คลินิก', 'ตรวจ', 'อาการ', 'รักษา', 'ป้องกัน', 'การแพร่เชื้อ', 'เริม',
-    'คลามิเดีย', 'หนองใน', 'ซิฟิลิส', 'เชื้อ', 'โรค', 'สุขภาพทางเพศ', 'ไม่ป้องกัน',
-    'สัมผัสเชื้อ', 'วัคซีน', 'สนับสนุน', 'ตีตรา', 'hiv คืออะไร', 'เอชไอวี คืออะไร',
-    'เอชไอวี คือ', 'hiv คือ'
-  ]
-};
+function isHealthcareQuery(message, lang) {
+  const lowerMessage = message.toLowerCase();
+  const healthcareKeywords = lang === 'th' ? [
+    'hiv', 'เอชไอวี', 'prep', 'เปร็ป', 'pep', 'ผลเลือด', 'ตรวจเลือด', 'เป็นลบ', 'เป็นบวก', 'อาการแพ้'
+  ] : [
+    'hiv', 'prep', 'pep', 'blood test', 'negative', 'positive', 'side effect'
+  ];
+  return healthcareKeywords.some(keyword => lowerMessage.includes(keyword));
+}
 
-/**
- * Check if query is healthcare-related
- * @param {string} query - User query
- * @param {string} lang - Language code ('en' or 'th')
- * @returns {boolean} - True if healthcare-related, false otherwise
- */
-const isHealthcareQuery = (query, lang = 'en') => {
-  if (!query) return false;
-  
-  const lowerQuery = query.toLowerCase().trim();
-  
-  // Special case for PrEP/PEP related queries - these are always healthcare
-  if (/prep|pep|เพร็พ|เพพ|พรีพ|เพร็ป/.test(lowerQuery)) {
-    console.log('Detected PrEP/PEP healthcare query');
-    return true;
-  }
-  
-  // Special case for common Thai healthcare queries 
-  // The word "คือ" in Thai often means "is" or "what is"
-  if (/hiv\s+คือ|เอชไอวี\s+คือ|เอดส์\s+คือ/.test(lowerQuery)) {
-    console.log('Detected Thai HIV definition query');
-    return true;
-  }
-  
-  // Special case for HIV/health queries - handle common formats directly
-  if (/hiv|เอชไอวี|aids|เอดส์|std|sti|โรคติดต่อทางเพศสัมพันธ์/.test(lowerQuery)) {
-    return true;
-  }
-  
-  // Handle "คืออะไร" pattern (what is) in Thai
-  if (lowerQuery.includes('คืออะไร') || lowerQuery.includes('คือ ') || 
-      lowerQuery.includes('คืออะไร') || lowerQuery.includes('คือ อะไร')) {
-    return true;
-  }
-  
-  // Handle general Thai healthcare queries
-  if (lang === 'th' && /สุขภาพ|โรค|เชื้อ|ตรวจ|รักษา|ป้องกัน|อาการ|กิน|ทาน/.test(lowerQuery)) {
-    return true;
-  }
-  
-  // Use regular keyword detection for other cases
-  const keywords = healthcareKeywords[lang] || healthcareKeywords.en;
-  
-  // Check for direct matches with keywords
-  for (const keyword of keywords) {
-    if (lowerQuery.includes(keyword.toLowerCase())) {
-      return true;
-    }
-  }
-  
-  return false;
-};
+function detectHealthcareTopics(message, lang) {
+  const topics = [];
+  const lowerMessage = message.toLowerCase();
+  if (/hiv|เอชไอวี/.test(lowerMessage)) topics.push('hiv');
+  if (/prep|เปร็ป/.test(lowerMessage)) topics.push('prep');
+  if (/pep/.test(lowerMessage)) topics.push('pep');
+  if (/ผลเลือด|ตรวจเลือด|เป็นลบ|เป็นบวก/.test(lowerMessage)) topics.push('blood_test');
+  return topics.length > 0 ? topics : [];
+}
 
-/**
- * Get response for healthcare query
- * @param {string} query - User query
- * @param {string} lang - Language code ('en' or 'th')
- * @returns {string} - Response text
- */
-const getHealthcareResponse = (query, lang = 'en') => {
+function getHealthcareResponse(query, lang = 'en') {
+  // You can expand this logic as needed
   const knowledge = healthcareKnowledge[lang] || healthcareKnowledge.en;
   const lowerQuery = query.toLowerCase();
-  
-  let response = '';
-  
-  // For 'what is HIV' questions
-  if ((lowerQuery.includes('hiv') && 
-       (lowerQuery.includes('คืออะไร') || lowerQuery.includes('คือ ') || 
-        lowerQuery.includes('what is') || lowerQuery.includes('definition')))) {
-    
-    // Create a more natural-sounding response 
-    if (lang === 'th') {
-      response = `HIV หรือเอชไอวี (${knowledge.understanding.hiv}) 
 
-เอชไอวีสามารถแพร่กระจายได้ผ่าน${knowledge.understanding.transmission}
-
-การรักษา: ${knowledge.treatment.hiv}
-
-การป้องกัน: ${knowledge.prevention.prep}
-
-${knowledge.disclaimer}`;
-    } else {
-      response = `HIV (Human Immunodeficiency Virus) is ${knowledge.understanding.hiv}
-
-Regarding transmission: ${knowledge.understanding.transmission}
-
-Treatment options: ${knowledge.treatment.hiv}
-
-Prevention methods: ${knowledge.prevention.prep}
-
-${knowledge.disclaimer}`;
-    }
-    
-    return response;
+  // Example: If the query is about HIV, return the HIV info
+  if (lowerQuery.includes('hiv')) {
+    return lang === 'th'
+      ? `ข้อมูลเกี่ยวกับเอชไอวี: ${knowledge.understanding.hiv}\n\n${knowledge.disclaimer}`
+      : `About HIV: ${knowledge.understanding.hiv}\n\n${knowledge.disclaimer}`;
   }
-  
-  // Use the rest of the logic but make responses more conversational
-  // ... existing conditional code ...
-  
-  // When no specific pattern matches, provide general information in a conversational way
-  if (lang === 'th') {
-    return `ข้อมูลเกี่ยวกับสุขภาพทางเพศ:
 
-${knowledge.understanding.hiv}
-
-วิธีการป้องกัน: ${knowledge.prevention.condoms}
-
-การตรวจ: ${knowledge.testing.locations}
-
-${knowledge.disclaimer}`;
-  } else {
-    return `Here's some information about sexual health:
-
-${knowledge.understanding.hiv}
-
-Prevention methods: ${knowledge.prevention.condoms}
-
-Testing options: ${knowledge.testing.locations}
-
-${knowledge.disclaimer}`;
-  }
-};
+  // Default: General info
+  return lang === 'th'
+    ? `ข้อมูลสุขภาพทั่วไป: ${knowledge.understanding.hiv}\n\n${knowledge.disclaimer}`
+    : `General health info: ${knowledge.understanding.hiv}\n\n${knowledge.disclaimer}`;
+}
 
 module.exports = {
   isHealthcareQuery,
   getHealthcareResponse,
-  healthcareKnowledge
+  healthcareKnowledge,
+  detectHealthcareTopics
 }; 

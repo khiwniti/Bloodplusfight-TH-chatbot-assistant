@@ -7,6 +7,24 @@ const axios = require('axios');
 const config = require('../../config/config');
 const logger = require('./loggerService');
 const cachedResponseService = require('./cachedResponseService');
+const NodeCache = require('node-cache');
+const cache = new NodeCache({ stdTTL: 3600 });
+
+const retryWithBackoff = async (fn, retries = 3, delay = 1000) => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await fn();
+    } catch (error) {
+      if ((error.message.includes('timeout') || error.response?.status === 429) && i < retries - 1) {
+        const backoffDelay = delay * Math.pow(2, i);
+        console.warn(`DeepSeek error, retrying in ${backoffDelay}ms (attempt ${i + 1}/${retries})`, { error: error.message });
+        await new Promise(resolve => setTimeout(resolve, backoffDelay));
+        continue;
+      }
+      throw error;
+    }
+  }
+};
 
 /**
  * Generate a response using DeepSeek AI
@@ -15,13 +33,11 @@ const cachedResponseService = require('./cachedResponseService');
  * @returns {Promise<string>} - The AI-generated response
  */
 const generateResponse = async (userMessage, context) => {
-  // Check if we should use cached responses first
-  if (process.env.USE_CACHED_RESPONSES === 'true') {
-    const cachedResponse = cachedResponseService.getCachedResponse(userMessage, context.language);
-    if (cachedResponse) {
-      logger.info('Using cached response for query:', userMessage);
-      return cachedResponse;
-    }
+  const cacheKey = `response:${context.language}:${userMessage}`;
+  const cachedResponse = cache.get(cacheKey);
+  if (cachedResponse) {
+    console.info('Using cached DeepSeek response', { cacheKey });
+    return cachedResponse;
   }
   
   // Prepare conversation history for context
@@ -62,80 +78,25 @@ Health context: ${JSON.stringify(context.healthcareContext)}`
   // Add current user message
   messages.push({ role: 'user', content: userMessage });
   
-  // Make API request with retries
-  const retryCount = parseInt(process.env.OPENROUTER_RETRY_COUNT) || 3;
-  const retryDelay = parseInt(process.env.OPENROUTER_RETRY_DELAY) || 3000;
-  const timeout = parseInt(process.env.OPENROUTER_TIMEOUT) || 20000;
+  const response = await retryWithBackoff(() => axios.post(process.env.DEEPSEEK_API_ENDPOINT || 'https://api.deepseek.com/v1/chat/completions', {
+    model: process.env.DEEPSEEK_API_MODEL || 'deepseek-chat',
+    messages,
+    temperature: 0.7,
+    max_tokens: parseInt(process.env.DEEPSEEK_MAX_TOKENS) || 2000,
+    top_p: 0.9,
+    stream: false
+  }, {
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${process.env.DEEPSEEK_API_KEY}`,
+    },
+    timeout: config.limits.aiResponseTimeout || 15000
+  }));
   
-  for (let attempt = 1; attempt <= retryCount; attempt++) {
-    try {
-      logger.info(`DeepSeek API request attempt ${attempt}/${retryCount}`);
-      
-      const response = await axios.post(process.env.DEEPSEEK_API_ENDPOINT || 'https://api.deepseek.com/v1/chat/completions', {
-        model: process.env.DEEPSEEK_API_MODEL || 'deepseek-chat',
-        messages: messages,
-        temperature: 0.7,
-        max_tokens: parseInt(process.env.DEEPSEEK_MAX_TOKENS) || 2000,
-        top_p: 0.9,
-        stream: false
-      }, {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.DEEPSEEK_API_KEY}`,
-        },
-        timeout: timeout
-      });
-      
-      logger.info('DeepSeek API response received successfully');
-      return response.data.choices[0].message.content;
-    } catch (error) {
-      const statusCode = error.response?.status;
-      logger.error(`DeepSeek API error (attempt ${attempt}/${retryCount}):`, { 
-        message: error.message, 
-        statusCode: statusCode,
-        data: error.response?.data
-      });
-      
-      // Handle rate limiting (429) specifically
-      if (statusCode === 429) {
-        if (attempt < retryCount) {
-          const currentDelay = retryDelay * Math.pow(2, attempt - 1); // Exponential backoff
-          logger.info(`Rate limited, retrying in ${currentDelay}ms...`);
-          await new Promise(resolve => setTimeout(resolve, currentDelay));
-          continue;
-        } else if (process.env.RATE_LIMIT_FALLBACK_ENABLED === 'true') {
-          // Use cached response after all retries failed due to rate limiting
-          const cachedResponse = cachedResponseService.getCachedResponse(userMessage, context.language);
-          if (cachedResponse) {
-            logger.info('Using cached response after rate limit');
-            return cachedResponse;
-          }
-        }
-      } else if (attempt < retryCount) {
-        // For other errors, retry with regular delay
-        logger.info(`Retrying in ${retryDelay}ms...`);
-        await new Promise(resolve => setTimeout(resolve, retryDelay));
-        continue;
-      }
-      
-      // If we've exhausted all retries or it's not a retriable error
-      if (attempt === retryCount) {
-        logger.error('All DeepSeek API attempts failed');
-        
-        // Try to use cached response as fallback
-        const cachedResponse = cachedResponseService.getCachedResponse(userMessage, context.language);
-        if (cachedResponse) {
-          logger.info('Using cached response as fallback after API failure');
-          return cachedResponse;
-        }
-        
-        // If no cached response, return a generic fallback based on language
-        return context.language === 'en'
-          ? "I'm sorry, but I'm currently experiencing technical difficulties. Please try again later or rephrase your question."
-          : "ขออภัย ขณะนี้ระบบกำลังประสบปัญหาทางเทคนิค โปรดลองอีกครั้งในภายหลังหรือถามคำถามในรูปแบบอื่น";
-      }
-    }
-  }
+  console.info('DeepSeek API response received successfully');
+  const result = response.data.choices[0].message.content;
+  cache.set(cacheKey, result);
+  return result;
 };
 
 module.exports = {

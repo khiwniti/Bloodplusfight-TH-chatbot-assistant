@@ -1,46 +1,6 @@
-const Conversation = require('../models/Conversation');
-const mongoose = require('mongoose');
-const logger = require('./loggerService');
-
 // In-memory conversation store for when database is not available
 const inMemoryConversations = new Map();
-
-// Timeout for MongoDB operations in milliseconds
-const MONGODB_OPERATION_TIMEOUT = 5000;
-
-/**
- * Check if MongoDB is connected
- * @returns {boolean} Connection status
- */
-const isMongoDBConnected = () => {
-  return mongoose.connection.readyState === 1; // 1 = connected
-};
-
-/**
- * Execute MongoDB operation with timeout protection
- * @param {Function} operation - MongoDB operation to execute
- * @param {Function} fallback - Fallback function if operation fails
- * @returns {Promise<any>} Operation result or fallback result
- */
-const executeWithTimeout = async (operation, fallback) => {
-  if (!isMongoDBConnected()) {
-    logger.debug('MongoDB not connected, using fallback for conversation operation');
-    return fallback();
-  }
-
-  try {
-    // Create a timeout promise that rejects after specified time
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('MongoDB operation timed out')), MONGODB_OPERATION_TIMEOUT);
-    });
-
-    // Race the operation against the timeout
-    return await Promise.race([operation(), timeoutPromise]);
-  } catch (error) {
-    logger.error('MongoDB conversation operation failed:', error);
-    return fallback();
-  }
-};
+const logger = require('./loggerService');
 
 /**
  * Get active conversation for a user
@@ -50,19 +10,7 @@ const executeWithTimeout = async (operation, fallback) => {
  */
 const getActiveConversation = async (lineUserId, displayName = 'User') => {
   try {
-    return await executeWithTimeout(
-      async () => {
-        let conversation = await Conversation.getActiveConversation(lineUserId);
-        
-        // Update display name if provided
-        if (displayName && displayName !== 'User' && conversation.displayName !== displayName) {
-          conversation.displayName = displayName;
-        }
-        
-        return conversation;
-      },
-      () => getInMemoryConversation(lineUserId, displayName)
-    );
+    return getInMemoryConversation(lineUserId, displayName);
   } catch (error) {
     logger.error('Error getting active conversation', error, { lineUserId });
     return getInMemoryConversation(lineUserId, displayName);
@@ -112,34 +60,25 @@ const getInMemoryConversation = (lineUserId, displayName = 'User') => {
  */
 const addMessage = async (conversation, role, content, metadata = {}) => {
   try {
-    if (isMongoDBConnected() && conversation instanceof mongoose.Model) {
-      // MongoDB conversation
-      conversation.addMessage(role, content, metadata);
-      await conversation.save();
-      return conversation;
-    } else {
-      // In-memory conversation
-      if (!conversation.messages) {
-        conversation.messages = [];
-      }
-      
-      conversation.messages.push({
-        role,
-        content,
-        timestamp: new Date(),
-        metadata
-      });
-      
-      conversation.lastActivity = new Date();
-      return conversation;
+    if (!conversation.messages) {
+      conversation.messages = [];
     }
+    
+    conversation.messages.push({
+      role,
+      content,
+      timestamp: new Date(),
+      metadata
+    });
+    
+    conversation.lastActivity = new Date();
+    return conversation;
   } catch (error) {
     logger.error('Error adding message to conversation', error, { 
       lineUserId: conversation.lineUserId,
       role
     });
-    
-    // Fallback to in-memory if MongoDB operation failed
+    // Fallback to in-memory if error
     const inMemoryConversation = getInMemoryConversation(conversation.lineUserId, conversation.displayName);
     inMemoryConversation.messages.push({
       role,
@@ -160,37 +99,15 @@ const addMessage = async (conversation, role, content, metadata = {}) => {
  */
 const getConversationHistory = async (lineUserId, limit = 10) => {
   try {
-    return await executeWithTimeout(
-      async () => {
-        const conversation = await Conversation.findOne({ 
-          lineUserId, 
-          status: 'active' 
-        }).sort({ lastActivity: -1 }).lean();
-        
-        if (!conversation) return [];
-        
-        // Return the most recent messages, up to the limit
-        return conversation.messages
-          .slice(-limit)
-          .map(msg => ({
-            role: msg.role,
-            content: msg.content,
-            timestamp: msg.timestamp
-          }));
-      },
-      () => {
-        const conversation = inMemoryConversations.get(lineUserId);
-        if (!conversation) return [];
-        
-        return conversation.messages
-          .slice(-limit)
-          .map(msg => ({
-            role: msg.role,
-            content: msg.content,
-            timestamp: msg.timestamp
-          }));
-      }
-    );
+    const conversation = inMemoryConversations.get(lineUserId);
+    if (!conversation) return [];
+    return conversation.messages
+      .slice(-limit)
+      .map(msg => ({
+        role: msg.role,
+        content: msg.content,
+        timestamp: msg.timestamp
+      }));
   } catch (error) {
     logger.error('Error getting conversation history', error, { lineUserId });
     return [];
@@ -205,14 +122,8 @@ const getConversationHistory = async (lineUserId, limit = 10) => {
  */
 const updateLanguage = async (conversation, language) => {
   try {
-    if (isMongoDBConnected() && conversation instanceof mongoose.Model) {
-      conversation.language = language;
-      await conversation.save();
-      return conversation;
-    } else {
-      conversation.language = language;
-      return conversation;
-    }
+    conversation.language = language;
+    return conversation;
   } catch (error) {
     logger.error('Error updating conversation language', error, { 
       lineUserId: conversation.lineUserId 
@@ -228,14 +139,8 @@ const updateLanguage = async (conversation, language) => {
  */
 const closeConversation = async (conversation) => {
   try {
-    if (isMongoDBConnected() && conversation instanceof mongoose.Model) {
-      conversation.status = 'ended';
-      await conversation.save();
-      return conversation;
-    } else {
-      conversation.status = 'ended';
-      return conversation;
-    }
+    conversation.status = 'ended';
+    return conversation;
   } catch (error) {
     logger.error('Error closing conversation', error, { 
       lineUserId: conversation.lineUserId 
@@ -245,28 +150,18 @@ const closeConversation = async (conversation) => {
 };
 
 /**
- * Archive old conversations
+ * Archive old conversations (no-op for in-memory)
  * @param {number} daysOld - Days to consider a conversation old
  * @returns {Promise<number>} Number of archived conversations
  */
 const archiveOldConversations = async (daysOld = 7) => {
-  try {
-    if (!isMongoDBConnected()) {
-      logger.info('MongoDB not connected, skipping conversation archiving');
-      return 0;
-    }
-    
-    const result = await Conversation.archiveOldConversations(daysOld);
-    logger.info(`Archived ${result.modifiedCount} old conversations`);
-    return result.modifiedCount;
-  } catch (error) {
-    logger.error('Error archiving old conversations', error);
-    return 0;
-  }
+  // No-op for in-memory
+  return 0;
 };
 
 module.exports = {
   getActiveConversation,
+  getInMemoryConversation,
   addMessage,
   getConversationHistory,
   updateLanguage,

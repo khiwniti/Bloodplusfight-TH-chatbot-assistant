@@ -4,7 +4,6 @@
  */
 
 const lineBotService = require('./lineBotService');
-const openRouterService = require('./openRouterService');
 const conversationService = require('./conversationService');
 const customerService = require('./customerService');
 const healthcareService = require('./healthcareService');
@@ -16,14 +15,11 @@ const deepSeekService = require('./deepSeekService');
 const productService = require('./productService');
 const researchService = require('./researchService');
 
-// Choose the AI service based on configuration
-const useDeepSeekAPI = process.env.USE_DEEPSEEK_API === 'true';
-const aiService = useDeepSeekAPI ? deepSeekService : openRouterService;
+// Always use DeepSeek for AI
+const aiService = deepSeekService;
 
 module.exports = {
   lineBotService,
-  openRouterService,
-  deepSeekService,
   conversationService,
   customerService,
   healthcareService,
@@ -31,7 +27,8 @@ module.exports = {
   analyticsService,
   fallbackResponseService,
   cachedResponseService,
+  deepSeekService,
+  aiService,
   productService,
-  researchService,
-  aiService // Export the chosen AI service
+  researchService
 };

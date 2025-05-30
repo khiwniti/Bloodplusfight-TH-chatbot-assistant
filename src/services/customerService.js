@@ -1,45 +1,5 @@
-const Customer = require('../models/Customer');
-const mongoose = require('mongoose');
-
 // In-memory customer storage for when database is not available
 const inMemoryCustomers = new Map();
-
-// Timeout for MongoDB operations in milliseconds
-const MONGODB_OPERATION_TIMEOUT = 5000;
-
-/**
- * Check if MongoDB is connected
- * @returns {boolean} Connection status
- */
-const isMongoDBConnected = () => {
-  return mongoose.connection.readyState === 1; // 1 = connected
-};
-
-/**
- * Execute MongoDB operation with timeout protection
- * @param {Function} operation - MongoDB operation to execute
- * @param {Function} fallback - Fallback function if operation fails
- * @returns {Promise<any>} Operation result or fallback result
- */
-const executeWithTimeout = async (operation, fallback) => {
-  if (!isMongoDBConnected()) {
-    console.log('MongoDB not connected, using fallback');
-    return fallback();
-  }
-
-  try {
-    // Create a timeout promise that rejects after specified time
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('MongoDB operation timed out')), MONGODB_OPERATION_TIMEOUT);
-    });
-
-    // Race the operation against the timeout
-    return await Promise.race([operation(), timeoutPromise]);
-  } catch (error) {
-    console.error('MongoDB operation failed:', error.message);
-    return fallback();
-  }
-};
 
 /**
  * Find customer by Line user ID or create if not exists
@@ -49,26 +9,8 @@ const executeWithTimeout = async (operation, fallback) => {
  */
 const getOrCreateCustomer = async (lineUserId, displayName) => {
   try {
-    return await executeWithTimeout(
-      async () => {
-        let customer = await Customer.findOne({ lineUserId }).exec();
-
-        if (!customer) {
-          customer = new Customer({
-            lineUserId,
-            displayName,
-            preferences: [],
-            purchaseHistory: []
-          });
-          await customer.save();
-        }
-        
-        return customer;
-      },
-      () => getOrCreateInMemoryCustomer(lineUserId, displayName)
-    );
+    return getOrCreateInMemoryCustomer(lineUserId, displayName);
   } catch (error) {
-    console.error('Error in getOrCreateCustomer:', error);
     // Always return a valid customer object, even if just a minimal one
     return {
       lineUserId,
@@ -106,24 +48,8 @@ const getOrCreateInMemoryCustomer = (lineUserId, displayName) => {
  */
 const updatePreferences = async (lineUserId, preferences) => {
   try {
-    return await executeWithTimeout(
-      async () => {
-        const customer = await Customer.findOneAndUpdate(
-          { lineUserId },
-          { $set: { preferences } },
-          { new: true }
-        ).exec();
-        
-        if (!customer) {
-          throw new Error('Customer not found');
-        }
-        
-        return customer;
-      },
-      () => updateInMemoryCustomerPreferences(lineUserId, preferences)
-    );
+    return updateInMemoryCustomerPreferences(lineUserId, preferences);
   } catch (error) {
-    console.error('Error in updatePreferences:', error);
     return updateInMemoryCustomerPreferences(lineUserId, preferences);
   }
 };
@@ -148,24 +74,8 @@ const updateInMemoryCustomerPreferences = (lineUserId, preferences) => {
  */
 const addPurchase = async (lineUserId, purchase) => {
   try {
-    return await executeWithTimeout(
-      async () => {
-        const customer = await Customer.findOneAndUpdate(
-          { lineUserId },
-          { $push: { purchaseHistory: purchase } },
-          { new: true }
-        ).exec();
-        
-        if (!customer) {
-          throw new Error('Customer not found');
-        }
-        
-        return customer;
-      },
-      () => addInMemoryPurchase(lineUserId, purchase)
-    );
+    return addInMemoryPurchase(lineUserId, purchase);
   } catch (error) {
-    console.error('Error in addPurchase:', error);
     return addInMemoryPurchase(lineUserId, purchase);
   }
 };
@@ -195,18 +105,10 @@ const addInMemoryPurchase = (lineUserId, purchase) => {
  */
 const getPurchaseHistory = async (lineUserId) => {
   try {
-    return await executeWithTimeout(
-      async () => {
-        const customer = await Customer.findOne({ lineUserId }).exec();
-        return customer ? customer.purchaseHistory : [];
-      },
-      () => {
-        const customer = getOrCreateInMemoryCustomer(lineUserId);
-        return customer.purchaseHistory || [];
-      }
-    );
+    const customer = inMemoryCustomers.get(lineUserId);
+    if (!customer) return [];
+    return customer.purchaseHistory || [];
   } catch (error) {
-    console.error('Error in getPurchaseHistory:', error);
     return [];
   }
 };
