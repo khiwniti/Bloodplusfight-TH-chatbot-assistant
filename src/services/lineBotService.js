@@ -3,8 +3,72 @@ const productService = require('./productService');
 const openRouterService = require('./openRouterService');
 const healthcareService = require('./healthcareService');
 const researchService = require('./researchService');
-const config = require('../../config/config');
 const customerService = require('./customerService');
+const fallbackResponseService = require('./fallbackResponseService');
+const conversationService = require('./conversationService');
+const config = require('../../config/config');
+const analyticsService = require('./analyticsService');
+const deepSeekService = require('./deepSeekService');
+
+// Choose the AI service based on configuration
+const useDeepSeekAPI = process.env.USE_DEEPSEEK_API === 'true';
+const aiService = useDeepSeekAPI ? deepSeekService : openRouterService;
+
+// Create a simple logger if the logger service is not available
+const logger = {
+  info: console.log,
+  warn: console.warn,
+  error: console.error,
+  debug: console.debug,
+  logLineEvent: (event, data) => console.log('Line event:', event.type, data),
+  logApiCall: (service, endpoint, status, data) => {
+    console.log(`API Call: ${service} - ${endpoint} - Status: ${status}`, data ? JSON.stringify(data).substring(0, 200) + '...' : '');
+  }
+};
+
+// Create a safe wrapper for analytics functions
+const safeAnalytics = {
+  logBotActivity: (userId, userMessage, botResponse, isAiGenerated) => {
+    try {
+      if (analyticsService && typeof analyticsService.logBotActivity === 'function') {
+        analyticsService.logBotActivity(userId, userMessage, botResponse, isAiGenerated);
+      } else {
+        logger.logApiCall('Analytics', 'logBotActivity', 'skipped', { userId });
+      }
+    } catch (error) {
+      logger.error('Error calling analyticsService.logBotActivity:', error);
+    }
+  },
+  
+  logApiCall: (service, endpoint, status, data) => {
+    try {
+      // First log to our standard logger
+      logger.logApiCall(service, endpoint, status, data);
+      
+      // Then try to use the analytics service if it exists
+      if (analyticsService && typeof analyticsService.logApiCall === 'function') {
+        analyticsService.logApiCall(service, endpoint, status, data);
+      }
+    } catch (error) {
+      logger.error('Error calling analyticsService.logApiCall:', error);
+    }
+  },
+  
+  logFailedApiCall: (userId, userMessage, error) => {
+    try {
+      if (analyticsService && typeof analyticsService.logFailedApiCall === 'function') {
+        analyticsService.logFailedApiCall(userId, userMessage, error);
+      } else {
+        logger.logApiCall('Analytics', 'logFailedApiCall', 'skipped', { 
+          userId,
+          errorMessage: error.message
+        });
+      }
+    } catch (error) {
+      logger.error('Error calling analyticsService.logFailedApiCall:', error);
+    }
+  }
+};
 
 // Check if we're in development mode
 const isDevelopment = process.env.NODE_ENV !== 'production';
@@ -12,228 +76,594 @@ const isDevelopment = process.env.NODE_ENV !== 'production';
 // Create a LINE SDK client or a mock client for development
 let client;
 
-if (isDevelopment) {
-  console.log('Running in development mode with mock LINE client');
-  // Create a mock client with fake methods for development
-  client = {
-    // Mock LINE client methods with dummy implementations
-    pushMessage: async () => console.log('Mock: Push message called'),
-    replyMessage: async () => console.log('Mock: Reply message called'),
-    getProfile: async (userId) => ({
-      displayName: 'Test User',
-      userId: userId || 'test-user-id',
-      language: 'en',
-      pictureUrl: 'https://example.com/profile.jpg'
-    }),
-    // Add other LINE client methods as needed
-  };
-} else {
-  // Use real LINE client in production
-  try {
-    console.log('Creating LINE client with credentials');
-    client = new Client(config.line);
-    // Validate the token early
-    if (!config.line.channelAccessToken || !config.line.channelSecret) {
-      console.error('LINE credentials missing - using fallback client');
-      throw new Error('Missing LINE credentials');
-    }
-  } catch (error) {
-    console.error('Error creating LINE client, using fallback client:', error.message);
-    // Fallback to mock client in case of error
-    client = {
-      pushMessage: async () => console.warn('WARN: Using fallback LINE client - pushMessage called with invalid credentials'),
-      replyMessage: async () => console.warn('WARN: Using fallback LINE client - replyMessage called with invalid credentials'),
-      getProfile: async (userId) => {
-        console.warn('WARN: Using fallback LINE client - getProfile called with invalid credentials');
-        return {
-          displayName: 'Unknown User',
-          userId: userId || 'unknown-user',
-          language: 'en',
-          pictureUrl: 'https://example.com/default.jpg'
-        };
+try {
+  // Initialize the real LINE client with credentials
+  client = new Client({
+    channelAccessToken: config.line.channelAccessToken,
+    channelSecret: config.line.channelSecret
+  });
+  
+  // Test the client by making a simple API call
+  client.getProfile('test')
+    .catch(error => {
+      if (error.statusCode === 404) {
+        // This is expected for a test user ID
+        console.log('LINE client initialized successfully');
+      } else if (error.statusCode === 401) {
+        // Authentication error - likely invalid credentials
+        console.error('LINE authentication failed. Check your channel access token and secret.');
+        initializeMockClient();
+      } else {
+        console.error('LINE client test failed:', error.message);
       }
-    };
-  }
+    });
+} catch (error) {
+  console.error('Failed to initialize LINE client:', error.message);
+  initializeMockClient();
 }
 
-// Add a wrapper for handling 403 errors gracefully
-const safeLineAPI = {
-  getProfile: async (userId) => {
-    try {
-      return await client.getProfile(userId);
-    } catch (error) {
-      console.warn(`Error getting profile for ${userId}: ${error.message}`);
-      return {
-        displayName: 'Unknown User',
-        userId: userId,
-        language: 'en'
-      };
+/**
+ * Initialize a mock LINE client for development or when credentials are invalid
+ */
+function initializeMockClient() {
+  console.log('Using mock LINE client for development or due to invalid credentials');
+  client = {
+    // Mock LINE client methods with dummy implementations
+    getProfile: async (userId) => {
+      console.log(`Mock: Get profile for user ${userId}`);
+      return { displayName: 'Test User', userId };
+    },
+    replyMessage: async (replyToken, message) => {
+      console.log('Mock: Reply message called', { replyToken, message });
+      return { success: true };
+    },
+    pushMessage: async (userId, message) => {
+      console.log('Mock: Push message called', { userId, message });
+      return { success: true };
     }
-  },
-  replyMessage: async (token, message) => {
-    try {
-      return await client.replyMessage(token, message);
-    } catch (error) {
-      console.warn(`Error sending reply message: ${error.message}`);
-      return null;
+  };
+}
+
+/**
+ * Safe wrapper for LINE API calls to handle 403 errors gracefully
+ * @param {Function} apiCall - LINE API function to call
+ * @param {Array} args - Arguments for the API call
+ * @returns {Promise<any>} API call result
+ */
+const safeLineAPI = async (apiCall, ...args) => {
+  try {
+    return await apiCall(...args);
+  } catch (error) {
+    if (error.statusCode === 400) {
+      logger.warn('LINE API returned 400 Bad Request. Check API call parameters and token validity.', {
+        errorMessage: error.message,
+        responseData: error.response?.data,
+        args: args.map(arg => (typeof arg === 'object' ? JSON.stringify(arg, null, 2) : arg)) // Log arguments safely
+      });
+      return null; // Suppress error to prevent crash, indicates message likely not sent
+    } else if (error.statusCode === 401) {
+      logger.warn('LINE API returned 401 Unauthorized. Check Channel Access Token.', {
+        errorMessage: error.message,
+        args: args.map(arg => (typeof arg === 'object' ? JSON.stringify(arg, null, 2) : arg))
+      });
+      return null; // Suppress error
+    } else if (error.statusCode === 403) {
+      logger.warn('LINE API returned 403 Forbidden. Check permissions or IP whitelisting.', {
+        errorMessage: error.message,
+        args: args.map(arg => (typeof arg === 'object' ? JSON.stringify(arg, null, 2) : arg))
+      });
+      return null; // Suppress error
     }
-  },
-  pushMessage: async (to, message) => {
-    try {
-      return await client.pushMessage(to, message);
-    } catch (error) {
-      console.warn(`Error sending push message: ${error.message}`);
-      return null;
-    }
+    // For other errors, rethrow to be caught by higher-level error handlers
+    logger.error('Unhandled LINE API error in safeLineAPI:', { errorMessage: error.message, statusCode: error.statusCode });
+    throw error;
   }
 };
 
-// Log configuration (without sensitive data)
-console.log('LINE Bot Configuration:', {
-  hasChannelSecret: !!config.line.channelSecret,
-  hasChannelAccessToken: !!config.line.channelAccessToken
-});
+// Safe wrappers for LINE API methods
+const safeGetProfile = async (userId) => safeLineAPI(client.getProfile.bind(client), userId);
+const safeReplyMessage = async (replyToken, message) => safeLineAPI(client.replyMessage.bind(client), replyToken, message);
+const safePushMessage = async (userId, message) => safeLineAPI(client.pushMessage.bind(client), userId, message);
 
-// Language messages for multilingual support
+// Multilingual message definitions
 const messages = {
   en: {
-    greeting: (name) => `Hello ${name}! How can I assist you today? You can ask about our products, your purchase history, or get help with our services.`,
-    noPurchaseHistory: 'You have no purchase history yet. Check out our products by typing "products"!',
-    purchaseHistory: 'Your recent purchases:',
-    productsList: 'Here are our available products:',
-    help: 'Here are commands you can use:\n- "hi" or "hello": Get a greeting\n- "history" or "purchases": See your purchase history\n- "products" or "catalog": See our product list\n- "help": See this help message\nYou can also ask me any questions about our products or services!',
-    welcome: (name) => `Welcome ${name}! Thank you for adding me as a friend. I can help you with product information and more. Type "help" to see what I can do!`,
-    errorProcessing: 'Sorry, I encountered an error processing your request.',
-    errorPurchaseHistory: 'Sorry, I could not retrieve your purchase history at the moment.',
-    errorProductList: 'Sorry, I could not retrieve our product list at the moment.',
-    errorHelp: 'Sorry, I encountered an error while providing help information.',
-    errorAI: 'I\'m having trouble understanding that right now. Can you try asking in a different way?',
-    textMessagesOnly: 'Sorry, I can only handle text messages right now.',
-    research: 'Researching healthcare information...',
-    errorResearch: 'Sorry, I could not find healthcare information on this topic at this time. Please try again later or consult a healthcare professional.',
-    researchHelp: 'You can use the healthcare research feature by typing "research" followed by your health question. For example: "research HIV prevention" or "research diabetes symptoms"',
+    greeting: 'Hello! How may I assist you today?',
+    welcome: 'Welcome to our service! How can I help you?',
+    fallback: 'I apologize, but I\'m having trouble understanding. Could you please rephrase your question?',
+    error: 'I\'m sorry, but I encountered an error. Please try again later.',
+    research: 'Let me research that for you...',
+    researchComplete: 'Based on my research:',
+    noResearchResults: 'I couldn\'t find specific information about that. Let me try to answer based on what I know.',
+    productNotFound: 'I couldn\'t find that product. Please try another one.',
+    askForPreferences: 'To serve you better, could you tell me what health topics you\'re interested in?',
+    preferencesUpdated: 'Thank you! I\'ve updated your preferences.',
+    healthcareIntro: 'I can provide information about HIV, STDs, prevention methods, testing, and treatment options. What would you like to know?',
+    commandHelp: 'Available commands:\n/help - Show this help message\n/reset - Reset conversation\n/language [en|th] - Change language\n/feedback [message] - Send feedback',
+    resetConfirmation: 'Your conversation has been reset.',
+    languageChanged: 'Language changed to English.',
+    feedbackThanks: 'Thank you for your feedback!',
+    unknownCommand: 'Unknown command. Type /help to see available commands.',
+    limitExceeded: 'You have exceeded your daily usage limit. Please try again tomorrow.'
   },
   th: {
-    greeting: (name) => `สวัสดีคุณ ${name}! ฉันช่วยอะไรคุณได้บ้าง? คุณสามารถถามเกี่ยวกับสินค้า ประวัติการซื้อ หรือขอความช่วยเหลือเกี่ยวกับบริการของเราได้`,
-    noPurchaseHistory: 'คุณยังไม่มีประวัติการซื้อ ลองดูสินค้าของเราโดยพิมพ์ "สินค้า"!',
-    purchaseHistory: 'การซื้อล่าสุดของคุณ:',
-    productsList: 'นี่คือสินค้าที่มีจำหน่าย:',
-    help: 'นี่คือคำสั่งที่คุณสามารถใช้ได้:\n- "สวัสดี" หรือ "หวัดดี": ทักทาย\n- "ประวัติ" หรือ "การซื้อ": ดูประวัติการซื้อของคุณ\n- "สินค้า" หรือ "รายการสินค้า": ดูรายการสินค้า\n- "ช่วยเหลือ": ดูข้อความช่วยเหลือนี้\nคุณยังสามารถถามคำถามใดๆ เกี่ยวกับสินค้าหรือบริการของเราได้!',
-    welcome: (name) => `ยินดีต้อนรับคุณ ${name}! ขอบคุณที่เพิ่มฉันเป็นเพื่อน ฉันสามารถช่วยคุณเกี่ยวกับข้อมูลสินค้าและอื่นๆ พิมพ์ "ช่วยเหลือ" เพื่อดูว่าฉันสามารถทำอะไรได้บ้าง!`,
-    errorProcessing: 'ขออภัย ฉันพบข้อผิดพลาดในการประมวลผลคำขอของคุณ',
-    errorPurchaseHistory: 'ขออภัย ฉันไม่สามารถดึงข้อมูลประวัติการซื้อของคุณได้ในขณะนี้',
-    errorProductList: 'ขออภัย ฉันไม่สามารถดึงข้อมูลรายการสินค้าของเราได้ในขณะนี้',
-    errorHelp: 'ขออภัย ฉันพบข้อผิดพลาดในการให้ข้อมูลช่วยเหลือ',
-    errorAI: 'ฉันมีปัญหาในการเข้าใจสิ่งนั้นในขณะนี้ คุณลองถามด้วยวิธีอื่นได้ไหม?',
-    textMessagesOnly: 'ขออภัย ฉันสามารถรับข้อความตัวอักษรเท่านั้นในขณะนี้',
-    research: 'กำลังค้นคว้าข้อมูลทางการแพทย์...',
-    errorResearch: 'ขออภัย ฉันไม่สามารถค้นหาข้อมูลทางการแพทย์ในหัวข้อนี้ได้ในขณะนี้ กรุณาลองอีกครั้งในภายหลัง หรือปรึกษาบุคลากรทางการแพทย์',
-    researchHelp: 'คุณสามารถใช้ฟีเจอร์การค้นคว้าข้อมูลทางการแพทย์ได้โดยพิมพ์ "ค้นคว้า" ตามด้วยคำถามด้านสุขภาพของคุณ เช่น: "ค้นคว้า การป้องกัน HIV" หรือ "ค้นคว้า อาการของโรคเบาหวาน"',
+    greeting: 'สวัสดีครับ/ค่ะ มีอะไรให้ช่วยไหมครับ/คะ?',
+    welcome: 'ยินดีต้อนรับสู่บริการของเรา! มีอะไรให้ช่วยไหมครับ/คะ?',
+    fallback: 'ขออภัยครับ/ค่ะ ฉันไม่เข้าใจคำถามของคุณ กรุณาถามใหม่อีกครั้งได้ไหมครับ/คะ?',
+    error: 'ขออภัยครับ/ค่ะ เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้งในภายหลัง',
+    research: 'กำลังค้นหาข้อมูลให้คุณ...',
+    researchComplete: 'จากการค้นคว้าของฉัน:',
+    noResearchResults: 'ฉันไม่พบข้อมูลเฉพาะเกี่ยวกับเรื่องนี้ ฉันจะพยายามตอบตามความรู้ที่มี',
+    productNotFound: 'ฉันไม่พบสินค้านั้น กรุณาลองสินค้าอื่น',
+    askForPreferences: 'เพื่อให้บริการคุณได้ดีขึ้น คุณสนใจเรื่องสุขภาพด้านใดบ้างคะ/ครับ?',
+    preferencesUpdated: 'ขอบคุณค่ะ/ครับ! ฉันได้อัปเดตความสนใจของคุณแล้ว',
+    healthcareIntro: 'ฉันสามารถให้ข้อมูลเกี่ยวกับเอชไอวี โรคติดต่อทางเพศสัมพันธ์ วิธีการป้องกัน การตรวจ และทางเลือกในการรักษา คุณต้องการทราบเรื่องใดคะ/ครับ?',
+    commandHelp: 'คำสั่งที่ใช้ได้:\n/help - แสดงข้อความช่วยเหลือนี้\n/reset - รีเซ็ตการสนทนา\n/language [en|th] - เปลี่ยนภาษา\n/feedback [ข้อความ] - ส่งความคิดเห็น',
+    resetConfirmation: 'การสนทนาของคุณได้รับการรีเซ็ตแล้ว',
+    languageChanged: 'เปลี่ยนภาษาเป็นภาษาไทยแล้ว',
+    feedbackThanks: 'ขอบคุณสำหรับความคิดเห็นของคุณ!',
+    unknownCommand: 'ไม่รู้จักคำสั่ง พิมพ์ /help เพื่อดูคำสั่งที่ใช้ได้',
+    limitExceeded: 'คุณได้เกินขีดจำกัดการใช้งานประจำวันแล้ว โปรดลองอีกครั้งในวันพรุ่งนี้'
   }
 };
 
-// Define greeting patterns for each language
+// Common greeting patterns for language detection
 const greetingPatterns = {
-  en: ['hi', 'hello', 'hey', 'greetings', 'good morning', 'good afternoon', 'good evening', 'howdy'],
-  th: ['สวัสดี', 'หวัดดี', 'ดีจ้า', 'สวัสดีครับ', 'สวัสดีค่ะ', 'หวัดดีครับ', 'หวัดดีค่ะ']
+  en: [
+    /^hi$/i, /^hello$/i, /^hey$/i, /^good morning$/i, /^good afternoon$/i, 
+    /^good evening$/i, /^howdy$/i, /^greetings$/i, /^yo$/i
+  ],
+  th: [
+    /^สวัสดี/, /^หวัดดี/, /^ดีจ้า/, /^ดีครับ/, /^ดีค่ะ/, /^ดีคับ/,
+    /^ดีคะ/, /^ดี$/, /^ดีๆ/, /^อรุณสวัสดิ์/, /^สวัสดีตอนเช้า/,
+    /^สวัสดีตอนบ่าย/, /^สวัสดีตอนเย็น/, /^สวัสดีตอนค่ำ/
+  ]
 };
 
-// Add a simple in-memory context store to maintain conversation threads
-const conversationContexts = {};
+// Conversation contexts are now managed by conversationService
+
+// User API call tracking
+const userCalls = {};
+const USER_DAILY_LIMIT = 50; // You can adjust this value
 
 /**
- * Store conversation context for a user
+ * Track user API calls and enforce daily limits
  * @param {string} userId - User ID
- * @param {object} context - Context object
+ * @returns {boolean} - True if under limit, false if over limit
  */
-const storeConversationContext = (userId, context) => {
-  // Store only essential context data, not the full context
-  conversationContexts[userId] = {
-    lastQuery: context.healthcareContext?.query || '',
-    lastTopic: context.healthcareContext?.topic || '',
-    language: context.language,
-    timestamp: new Date().getTime()
-  };
-  
-  console.log(`Stored conversation context for ${userId}:`, conversationContexts[userId]);
-};
-
-/**
- * Get stored conversation context for a user
- * @param {string} userId - User ID
- * @returns {object|null} - Context object or null
- */
-const getConversationContext = (userId) => {
-  const context = conversationContexts[userId];
-  
-  // Check if context exists and is not too old (10 minutes)
-  if (context && (new Date().getTime() - context.timestamp) < 600000) {
-    console.log(`Retrieved conversation context for ${userId}:`, context);
-    return context;
+const trackCalls = (userId) => {
+  // Skip tracking in development mode
+  if (isDevelopment && !config.features.forceLimitsInDev) {
+    return true;
   }
   
-  return null;
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  
+  // First time user
+  if (!userCalls[userId]) {
+    userCalls[userId] = {
+      lastReset: today,
+      count: 1
+    };
+    return true;
+  } else {
+    // Check if need to reset (new day)
+    if (now > new Date(userCalls[userId].lastReset.getTime() + 24 * 60 * 60 * 1000)) {
+      userCalls[userId] = {
+        lastReset: today,
+        count: 1
+      };
+    } else {
+      // Increment count
+      userCalls[userId].count++;
+    }
+    
+    // Check if over limit
+    return userCalls[userId].count <= config.limits.dailyUserLimit;
+  }
 };
 
 /**
- * Detect language from text
- * @param {string} text - Input text
- * @returns {string} - 'th' for Thai, 'en' for English/others
+ * Handle LINE webhook event
+ * @param {Object} event - LINE webhook event
+ * @returns {Promise<void>}
+ */
+const handleEvent = async (event) => {
+  try {
+    logger.info('Received event:', { eventType: event.type });
+    
+    // Only handle text messages for now
+    if (event.type !== 'message' || event.message.type !== 'text') {
+      logger.info(`Ignoring non-text message event: ${event.type}`);
+      return;
+    }
+    
+    const { replyToken, source } = event;
+    const { userId } = source;
+    const userMessage = event.message.text.trim();
+    
+    // Track request start time for monitoring response time
+    const requestStartTime = Date.now();
+    
+    // Detect language early for use throughout the function
+    const detectedLang = detectLanguage(userMessage);
+    
+    // First, store the user message in the conversation history regardless of what happens next
+    try {
+      const conversation = await conversationService.getActiveConversation(userId);
+      if (conversation) {
+        await conversationService.addMessage(conversation, 'user', userMessage);
+      }
+    } catch (dbError) {
+      logger.error('Error storing user message in database:', dbError);
+      // Continue processing even if DB storage fails
+    }
+    
+    // Send research notification if enabled, but don't stop processing
+    let researchNotificationSent = false;
+    if (config.research.enabled && config.research.autoResearch) {
+      try {
+        // Send the research notification
+        const sendResult = await safeReplyMessage(replyToken, { 
+          type: 'text', 
+          text: messages[detectedLang].research 
+        });
+        
+        // Log the result
+        if (sendResult) {
+          logger.info('Sent research notification', { 
+            userId, 
+            responseTime: Date.now() - requestStartTime + 'ms'
+          });
+          
+          researchNotificationSent = true;
+          
+          // Store the research notification in the conversation history
+          try {
+            const conversation = await conversationService.getActiveConversation(userId);
+            if (conversation) {
+              await conversationService.addMessage(
+                conversation, 
+                'assistant', 
+                messages[detectedLang].research
+              );
+            }
+          } catch (dbError) {
+            logger.error('Error storing research notification in database:', dbError);
+          }
+          
+          // Track API call for analytics if enabled
+          if (config.features.enableAnalytics) {
+            safeAnalytics.logApiCall('LINE', 'replyMessage', 'success', {
+              userId,
+              messageType: 'research_notification'
+            });
+          }
+        } else {
+          logger.warn('Failed to send research notification', { 
+            userId,
+            responseTime: Date.now() - requestStartTime + 'ms'
+          });
+          
+          // If we couldn't send the reply, try with a push message
+          try {
+            const pushResult = await safePushMessage(userId, { 
+              type: 'text', 
+              text: messages[detectedLang].research 
+            });
+            
+            if (pushResult) {
+              logger.info('Recovered research notification with push message', { userId });
+              researchNotificationSent = true;
+            }
+          } catch (pushError) {
+            logger.error('Failed to recover research notification with push message', { 
+              error: pushError.message,
+              userId
+            });
+          }
+        }
+      } catch (error) {
+        logger.error('Error in research notification flow:', error);
+        // Continue processing even if notification fails
+      }
+    }
+    
+    // Check if we're in research-only mode (send notification but don't generate AI response)
+    const researchOnlyMode = config.research.enabled && 
+                            config.research.autoResearch && 
+                            config.research.stopAtNotification === true;
+    
+    if (researchOnlyMode && researchNotificationSent) {
+      logger.info('Research-only mode active, stopping after notification', { userId });
+      return;
+    }
+    
+    // If reply token was used for research notification, we'll need push message for the actual response
+    const needsPushMessage = researchNotificationSent;
+    const effectiveReplyToken = needsPushMessage ? null : replyToken;
+    
+    // Continue with normal processing - send acknowledgment if fast response is enabled
+    // and we haven't already sent a research notification
+    if (config.features.enableFastResponse && !researchNotificationSent) {
+      const quickAcknowledgment = "Received your message. Processing...";
+      try {
+        await safeReplyMessage(replyToken, { type: 'text', text: quickAcknowledgment });
+        // Now we'll need to use pushMessage for the actual response
+      } catch (ackError) {
+        logger.warn('Failed to send acknowledgment', { error: ackError.message });
+        // Continue with normal flow if acknowledgment fails
+      }
+    }
+    
+    // Get user profile
+    let profile;
+    try {
+      // Make this a non-blocking operation 
+      profile = await Promise.race([
+        safeGetProfile(userId),
+        new Promise(resolve => setTimeout(() => resolve({ displayName: 'Customer', userId }), 500))
+      ]);
+      logger.info('User profile retrieved', { userId });
+    } catch (error) {
+      logger.error('Error getting user profile:', error);
+      profile = { displayName: 'Customer', userId };
+    }
+    
+    // Get or create customer record
+    const customerPromise = customerService.getOrCreateCustomer(userId, profile?.displayName);
+    
+    // Get active conversation or create new one in parallel with other operations
+    const conversationPromise = conversationService.getActiveConversation(userId, profile?.displayName);
+    
+    // Check if this is a healthcare-related query early to prepare context
+    const isHealthcareRelated = healthcareService.isHealthcareQuery(userMessage, detectedLang);
+    
+    // Wait for parallel operations to complete
+    const [customer, conversation] = await Promise.all([customerPromise, conversationPromise]);
+    
+    // Update conversation language if needed, but don't generate a reply
+    if (conversation.language !== detectedLang) {
+      await conversationService.updateLanguage(conversation, detectedLang, true); // Added parameter to suppress response
+    }
+    
+    // For command handling, we need to check if we should completely skip responses
+    if (config.research.enabled && config.research.autoResearch && config.research.stopAtNotification === true) {
+      // Skip all further processing - we've already sent the research notification
+      return;
+    }
+    
+    // Handle command if message starts with the command prefix
+    if (config.features.commandPrefix && userMessage.startsWith(config.features.commandPrefix)) {
+      const isHandled = await handleCommand(
+        userMessage, 
+        userId, 
+        // If we sent an early acknowledgment or research notification, we'll need to use pushMessage instead
+        needsPushMessage ? null : replyToken, 
+        detectedLang, 
+        conversation
+      );
+      
+      if (isHandled) {
+        return; // Command was handled, no need to continue
+      }
+    }
+    
+    // Handle greeting patterns with simple response - fast path for common interactions
+    if (isGreeting(userMessage, detectedLang)) {
+      const greeting = messages[detectedLang].greeting;
+      
+      // If we already sent a notification or acknowledgment, use push message instead
+      if (needsPushMessage || config.features.enableFastResponse) {
+        await safePushMessage(userId, { type: 'text', text: greeting });
+      } else {
+        await safeReplyMessage(replyToken, { type: 'text', text: greeting });
+      }
+      
+      // Add bot response to conversation
+      await conversationService.addMessage(conversation, 'assistant', greeting);
+      
+      // Log activity if analytics is enabled
+      if (config.features.enableAnalytics) {
+        safeAnalytics.logBotActivity(userId, userMessage, greeting, false);
+      }
+      
+      return;
+    }
+    
+    // Check API call limits
+    if (!trackCalls(userId)) {
+      const limitMessage = messages[detectedLang].limitExceeded + ' ' + messages[detectedLang].fallback;
+      
+      // If we already sent a notification or acknowledgment, use push message instead
+      if (needsPushMessage || config.features.enableFastResponse) {
+        await safePushMessage(userId, { type: 'text', text: limitMessage });
+      } else {
+        await safeReplyMessage(replyToken, { type: 'text', text: limitMessage });
+      }
+      return;
+    }
+    
+    // Get recent conversation history - run in parallel with other operations
+    const conversationHistory = await conversationService.getConversationHistory(userId, 10);
+    
+    // Prepare customer context for AI
+    const customerContext = {
+      userId,
+      displayName: profile?.displayName || customer?.displayName || 'Customer',
+      preferences: customer?.preferences || [],
+      purchaseHistory: customer?.purchaseHistory || [],
+      language: detectedLang,
+      conversationHistory: conversationHistory // Last 10 messages for context
+    };
+    
+    // If the healthcare query is detected, add healthcare context
+    if (isHealthcareRelated) {
+      customerContext.healthcareContext = {
+        isHealthcareQuery: true,
+        topics: detectHealthcareTopics(userMessage, detectedLang)
+      };
+    }
+    
+    // Generate AI response
+    logger.info('Generating AI response with context:', { 
+      userId,
+      language: customerContext.language,
+      isHealthcare: !!customerContext.healthcareContext,
+      messageType: 'healthcare_query'
+    });
+    
+    let aiResponse;
+    let responseSuccess = false;
+    
+    try {
+      // Set timeout for AI response to prevent excessive waiting
+      aiResponse = await Promise.race([
+        aiService.generateResponse(userMessage, customerContext),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('AI response timeout')), 
+          config.limits.aiResponseTimeout || 10000)
+        )
+      ]);
+      
+      // Log successful AI generation if analytics is enabled
+      if (config.features.enableAnalytics) {
+        safeAnalytics.logBotActivity(userId, userMessage, aiResponse, true);
+        safeAnalytics.logApiCall('AI', 'generateResponse', 'success', {
+          userId,
+          responseLength: aiResponse.length
+        });
+      }
+    } catch (error) {
+      logger.error('Error generating AI response:', error);
+      
+      // Check if this is a rate limit error
+      const isRateLimit = error.message && (
+        error.message.includes('429') || 
+        error.message.includes('rate limit') || 
+        error.message.includes('too many requests')
+      );
+      
+      // Log the API failure with specific error type
+      if (config.features.enableAnalytics) {
+        safeAnalytics.logFailedApiCall(userId, userMessage, error);
+        safeAnalytics.logApiCall('AI', 'generateResponse', isRateLimit ? 'rate_limited' : 'error', {
+          userId,
+          errorMessage: error.message
+        });
+      }
+      
+      // Get appropriate fallback response (different for rate limit vs. other errors)
+      if (isRateLimit) {
+        aiResponse = detectedLang === 'th' 
+          ? 'ขออภัย ระบบกำลังมีการใช้งานสูง โปรดลองอีกครั้งในอีกสักครู่' 
+          : 'Sorry, the system is currently experiencing high traffic. Please try again in a moment.';
+      } else {
+        aiResponse = fallbackResponseService.getFallbackResponse(detectedLang, userMessage);
+      }
+      
+      // Log fallback response usage if analytics is enabled
+      if (config.features.enableAnalytics) {
+        safeAnalytics.logBotActivity(userId, userMessage, aiResponse, false);
+      }
+    }
+    
+    // Add AI response to conversation
+    try {
+      await conversationService.addMessage(conversation, 'assistant', aiResponse);
+    } catch (dbError) {
+      logger.error('Error saving AI response to conversation:', dbError);
+      // Continue processing - storing in DB is not critical for sending reply
+    }
+    
+    // Send response to user
+    try {
+      // If we already sent a notification or acknowledgment, use pushMessage instead
+      if (needsPushMessage || config.features.enableFastResponse) {
+        responseSuccess = await safePushMessage(userId, { type: 'text', text: aiResponse });
+      } else {
+        responseSuccess = await safeReplyMessage(replyToken, { type: 'text', text: aiResponse });
+      }
+      
+      if (responseSuccess) {
+        logger.info('Successfully sent reply to user', { 
+          userId, 
+          responseTime: Date.now() - requestStartTime + 'ms',
+          responseType: needsPushMessage ? 'push' : 'reply'
+        });
+        logger.logLineEvent(event, { success: true });
+      } else {
+        logger.warn('Received null response from LINE API when sending message', { userId });
+        throw new Error('LINE API returned null response');
+      }
+    } catch (error) {
+      logger.error('Error sending reply:', error);
+      // If reply fails and we haven't tried push yet, try to push message instead
+      try {
+        if (!needsPushMessage && !config.features.enableFastResponse) {
+          // Only try push if we didn't already try it
+          const pushSuccess = await safePushMessage(userId, { type: 'text', text: aiResponse });
+          if (pushSuccess) {
+            logger.info('Successfully recovered with push message after reply failure', { userId });
+          } else {
+            logger.error('Push message recovery returned null', { userId });
+          }
+        } else {
+          logger.error('Both reply and push methods failed', { userId });
+        }
+      } catch (pushError) {
+        logger.error('Error pushing message:', pushError);
+      }
+    }
+  } catch (error) {
+    console.error('Error handling event:', error);
+    try {
+      // Try to send error message if possible
+      if (event && event.replyToken) {
+        const errorMessage = isDevelopment ? 
+          `Error: ${error.message}` : 
+          messages.en.error;
+        const errorSuccess = await safeReplyMessage(event.replyToken, { type: 'text', text: errorMessage });
+        
+        if (errorSuccess) {
+          logger.info('Sent error message to user', { userId: event.source?.userId });
+        } else {
+          logger.error('Failed to send error message to user', { userId: event.source?.userId });
+        }
+      }
+    } catch (replyError) {
+      console.error('Error sending error message:', replyError);
+    }
+  }
+};
+
+/**
+ * Detect language from user message
+ * @param {string} text - User message
+ * @returns {string} Language code ('en' or 'th')
  */
 const detectLanguage = (text) => {
-  // Simple Thai language detection - if there are Thai characters in the text
+  // Simple Thai detection - if there are Thai characters in the text
   const thaiPattern = /[\u0E00-\u0E7F]/;
   return thaiPattern.test(text) ? 'th' : 'en';
 };
 
 /**
- * Get message in the appropriate language
- * @param {string} key - Message key
- * @param {string} lang - Language code
- * @param {any} params - Optional parameters for message template
- * @returns {string} - Localized message
+ * Check if message is a greeting
+ * @param {string} text - User message
+ * @param {string} lang - Detected language
+ * @returns {boolean} True if message is a greeting
  */
-const getMessage = (key, lang, params) => {
-  const langData = messages[lang] || messages.en;
-  const message = langData[key] || messages.en[key];
-  
-  if (typeof message === 'function') {
-    return message(params);
-  }
-  
-  return message;
+const isGreeting = (text, lang) => {
+  const patterns = greetingPatterns[lang] || greetingPatterns.en;
+  return patterns.some(pattern => pattern.test(text));
 };
 
 /**
- * Process and potentially truncate message to fit LINE's limits
- * @param {string} message - The message to process
- * @param {string} lang - Language code
- * @returns {string} - Processed message
- */
-const processMessageForLineLength = (message, lang = 'en') => {
-  const LINE_MAX_LENGTH = 5000; // LINE's character limit
-  
-  if (!message || message.length <= LINE_MAX_LENGTH) {
-    return message;
-  }
-  
-  console.log(`Message exceeds LINE's character limit (${message.length}), truncating...`);
-  
-  // Truncate to slightly less than the limit to add the truncation notice
-  const truncatedMessage = message.substring(0, LINE_MAX_LENGTH - 200);
-  
-  // Add truncation notice
-  const truncationNotice = lang === 'th'
-    ? '\n\n[ข้อความถูกตัดทอนเนื่องจากข้อจำกัดของ LINE กรุณาถามคำถามเฉพาะเจาะจงสำหรับข้อมูลเพิ่มเติม]'
-    : '\n\n[Message truncated due to LINE limitations. Please ask specific questions for more information.]';
-  
-  return truncatedMessage + truncationNotice;
-};
-
-/**
- * Handle text message from LINE
- * @param {object} event - LINE webhook event
- * @returns {Promise} - Response
+ * Handle text message event
+ * @param {Object} event - LINE webhook event
+ * @returns {Promise<void>}
  */
 const handleTextMessage = async (event) => {
   try {
@@ -266,436 +696,186 @@ const handleTextMessage = async (event) => {
       console.warn('Error getting customer data', error);
     }
     
-    // Process message based on type
-    // First, check if the text is a greeting
-    const isGreeting = greetingPatterns[lang]?.some(pattern => {
-      // Only use exact matches for greetings, not partial ones
-      const regex = new RegExp(`^${pattern}$`, 'i');
-      return regex.test(text);
-    }) || false;
-    
-    // Prepare the context for AI response
-    const context = {
-      customerName: customerData.displayName || 'Customer',
-      purchaseHistory: customerData.purchaseHistory || [],
-      preferences: customerData.preferences || [],
-      language: lang
-    };
-    
-    // Check if the query is healthcare-related first
-    const isHealthcare = healthcareService.isHealthcareQuery(text, lang) || 
-                         researchService.isHealthcareQuery(text, lang) || 
-                         /prep|pep|hiv|เอชไอวี|เอดส์|aids|std|sti|โรคติดต่อทางเพศสัมพันธ์|วัคซีน|vaccine/i.test(text);
-    
-    // Check for existing conversation context
-    const previousContext = getConversationContext(userId);
-    if (previousContext) {
-      console.log('Found previous conversation context:', previousContext);
+    // Handle slash command_
+    if (config.features.commandPrefix && text.startsWith(config.features.commandPrefix)) {
+      // Check usage limits if enabled
+      if (config.features.enableUsageLimits && !trackCalls(userId)) {
+        const limitMessage = lang === 'th' 
+          ? 'คุณได้เกินขีดจำกัดการใช้งานประจำวันแล้ว โปรดลองอีกครั้งในวันพรุ่งนี้'
+          : 'You have exceeded your daily usage limit. Please try again tomorrow.';
+        
+        // Send the limit message
+        await safeReplyMessage(replyToken, { type: 'text', text: limitMessage });
+        return; // Stop further processing for this event
+      } // Closes inner if (config.features.enableUsageLimits && !trackCalls(userId))
       
-      // If this is a healthcare-related query or we were previously discussing healthcare,
-      // maintain the conversation thread
-      if (isHealthcare || 
-          (previousContext.lastQuery && 
-           healthcareService.isHealthcareQuery(previousContext.lastQuery, previousContext.language))) {
-        
-        console.log('Continuing healthcare conversation thread');
-        
-        // Add previous context to current context
-        context.conversationHistory = previousContext;
-        context.healthcareContext = {
-          ...context.healthcareContext,
-          query: text,
-          language: lang,
-          officialLanguageRequired: true,
-          previousQuery: previousContext.lastQuery,
-          isContinuation: true
-        };
-        
-        // Always use AI for healthcare conversation threads
-        console.log('Processing with AI healthcare continuation response');
-        return await handleAIResponse(replyToken, userId, text, context);
+      // Placeholder for actual command handling logic
+      const commandReceivedMessage = lang === 'th' 
+        ? `ได้รับคำสั่งแล้ว: ${text}. การประมวลผลยังไม่ถูกสร้าง.`
+        : `Command received: ${text}. Processing not yet implemented.`;
+      await safeReplyMessage(replyToken, { type: 'text', text: commandReceivedMessage });
+      return; // Stop further processing as command logic is not implemented
+    } // Closes outer if (config.features.commandPrefix && text.startsWith(config.features.commandPrefix))
+
+    // If it's not a command, this function currently doesn't do more.
+    // The main logic is expected to be in handleEvent.
+    // If handleTextMessage was intended for more, that logic is missing from the provided snippet.
+
+  } catch (error) {
+    logger.error('Error in handleTextMessage:', { message: error.message, userId, text });
+    // Attempt to send a generic error message to the user if a replyToken is available
+    if (replyToken) {
+      try {
+        const errorMessageText = (messages[lang] && messages[lang].error) ? messages[lang].error : messages.en.error;
+        await safeReplyMessage(replyToken, { type: 'text', text: errorMessageText });
+      } catch (e) {
+        logger.error('Failed to send error reply in handleTextMessage:', { message: e.message });
       }
     }
-    
-    // If it's a healthcare query, process it accordingly
-    if (isHealthcare) {
-      console.log('Healthcare-related query detected');
-      
-      // Always use AI for healthcare queries with appropriate context
-      // Enhance context with healthcare information from both services
-      context.healthcareContext = {
-        query: text,
-        language: lang,
-        officialLanguageRequired: true,  // Signal to use official, formal language
-        healthcareData: healthcareService.healthcareKnowledge[lang] || healthcareService.healthcareKnowledge.en
-      };
-      
-      // Check if this is a research query about healthcare
-      if (config.research.enabled && researchService.isHealthcareQuery(text, lang)) {
-        try {
-          console.log('Researching healthcare topic');
-          const researchResults = await researchService.researchTopic(text, lang);
-          
-          if (researchResults) {
-            context.healthcareResearch = researchResults;
-            console.log('Added healthcare research to context');
-          }
-        } catch (error) {
-          console.error('Error in healthcare research flow:', error);
-          // Fall back to normal AI response
-          return handleAIResponse(event.replyToken, userId, text, context);
-        }
-      }
-      
-      // Use AI with healthcare context
-      console.log('Processing with AI healthcare response');
-      return handleAIResponse(event.replyToken, userId, text, context);
-    }
-    
-    // If it's a greeting and not healthcare, send a simple greeting
-    if (isGreeting) {
-      console.log('Greeting detected, sending greeting response');
-      return sendSimpleGreeting(replyToken, lang);
-    }
-    
-    // For any other message, use AI with appropriate context
-    console.log('Processing with AI response');
-    return handleAIResponse(event.replyToken, userId, text, context);
-  } catch (error) {
-    console.error('Error handling text message:', error);
-    return sendErrorResponse(event.replyToken, 'Sorry, something went wrong. Please try again later.');
   }
-};
+}; // Closes handleTextMessage function
 
 /**
- * Send an error response to the user
- */
-const sendErrorResponse = async (replyToken, message) => {
-  try {
-    return await safeLineAPI.replyMessage(replyToken, {
-      type: 'text',
-      text: message
-    });
-  } catch (error) {
-    console.error('Error sending error response:', error);
-    // At this point, we can't do much more
-  }
-};
-
-/**
- * Handle greeting messages
- */
-const handleGreeting = async (replyToken, displayName, lang) => {
-  try {
-    const message = {
-      type: 'text',
-      text: getMessage('greeting', lang, displayName)
-    };
-    
-    console.log('Sending greeting message:', JSON.stringify(message, null, 2));
-    return await safeLineAPI.replyMessage(replyToken, message);
-  } catch (error) {
-    console.error('Error in handleGreeting:', error);
-    return sendErrorResponse(replyToken, getMessage('errorProcessing', lang));
-  }
-};
-
-/**
- * Handle purchase history requests
- */
-const handlePurchaseHistoryRequest = async (replyToken, userId, lang) => {
-  try {
-    const purchaseHistory = productService.getPurchaseHistory(userId, lang);
-    console.log('Purchase history:', JSON.stringify(purchaseHistory, null, 2));
-    
-    let message;
-    if (purchaseHistory.length === 0) {
-      message = {
-        type: 'text',
-        text: getMessage('noPurchaseHistory', lang)
-      };
-    } else {
-      const recentPurchases = purchaseHistory
-        .slice(0, 5)
-        .map((purchase, index) => {
-          const date = new Date(purchase.purchaseDate).toLocaleDateString();
-          return `${index + 1}. ${purchase.productName} - $${purchase.price} (${date})`;
-        })
-        .join('\n');
-      
-      message = {
-        type: 'text',
-        text: `${getMessage('purchaseHistory', lang)}\n${recentPurchases}`
-      };
-    }
-    
-    console.log('Sending purchase history message:', JSON.stringify(message, null, 2));
-    return await safeLineAPI.replyMessage(replyToken, message);
-  } catch (error) {
-    console.error('Error in handlePurchaseHistoryRequest:', error);
-    return sendErrorResponse(replyToken, getMessage('errorPurchaseHistory', lang));
-  }
-};
-
-/**
- * Handle products request
- */
-const handleProductsRequest = async (replyToken, lang) => {
-  try {
-    const products = productService.getAllProducts(lang);
-    console.log('Products list:', JSON.stringify(products, null, 2));
-    
-    const productList = products
-      .map((product, index) => {
-        return `${index + 1}. ${product.name} - $${product.price}\n   ${product.description}`;
-      })
-      .join('\n\n');
-    
-    const message = {
-      type: 'text',
-      text: `${getMessage('productsList', lang)}\n\n${productList}`
-    };
-    
-    console.log('Sending products message:', JSON.stringify(message, null, 2));
-    return await safeLineAPI.replyMessage(replyToken, message);
-  } catch (error) {
-    console.error('Error in handleProductsRequest:', error);
-    return sendErrorResponse(replyToken, getMessage('errorProductList', lang));
-  }
-};
-
-/**
- * Handle help requests
- */
-const handleHelpRequest = async (replyToken, lang) => {
-  try {
-    // Add healthcare and research commands to help message
-    const standardHelp = getMessage('help', lang);
-    const healthcareHelp = lang === 'th' 
-      ? '\n\nคุณสามารถถามเกี่ยวกับเรื่องสุขภาพเพื่อรับข้อมูลเกี่ยวกับ HIV และโรคติดต่อทางเพศสัมพันธ์ต่างๆ'
-      : '\n\nYou can ask about health topics to get information about HIV and STDs.';
-    const researchHelp = lang === 'th'
-      ? '\n\n' + getMessage('researchHelp', 'th')
-      : '\n\n' + getMessage('researchHelp', 'en');
-    
-    const message = {
-      type: 'text',
-      text: standardHelp + healthcareHelp + researchHelp
-    };
-    
-    console.log('Sending help message:', JSON.stringify(message, null, 2));
-    return await safeLineAPI.replyMessage(replyToken, message);
-  } catch (error) {
-    console.error('Error in handleHelpRequest:', error);
-    return sendErrorResponse(replyToken, getMessage('errorHelp', lang));
-  }
-};
-
-/**
- * Handle AI response
- * @param {string} replyToken - LINE reply token
+ * Handle command with the configured prefix
+ * @param {string} text - Command text including prefix
  * @param {string} userId - User ID
- * @param {string} text - User message
- * @param {object} context - Context object
- * @returns {Promise} - LINE API response
+ * @param {string} replyToken - Reply token
+ * @param {string} language - User language
+ * @param {Object} conversation - User conversation object
+ * @returns {Promise<boolean>} - True if handled as command, false otherwise
  */
-const handleAIResponse = async (replyToken, userId, text, context) => {
-  try {
-    console.log(`Getting AI response for: ${text}`);
-    
-    // Get response from OpenRouter
-    const aiResponse = await openRouterService.generateResponse(text, context);
-    
-    console.log('AI response received:', aiResponse.substring(0, 100) + '...');
-    
-    // Send AI response
-    return sendTextMessage(replyToken, aiResponse, context.language || 'en');
-  } catch (error) {
-    console.error('Error in handleAIResponse:', error);
-    return sendErrorResponse(replyToken, getMessage('errorAI', context.language || 'en'));
-  } finally {
-    // Before returning from handleAIResponse, store the context
-    storeConversationContext(userId, context);
+const handleCommand = async (text, userId, replyToken, language, conversation) => {
+  // Verify this is actually a command
+  if (!config.features.commandPrefix || !text.startsWith(config.features.commandPrefix)) {
+    return false;
   }
-};
-
-/**
- * Handle research queries
- */
-const handleResearchQuery = async (replyToken, query, lang) => {
-  try {
-    // Extract the actual query from the command
-    let researchQuery;
-    if (lang === 'th' && query.toLowerCase().startsWith('ค้นคว้า ')) {
-      researchQuery = query.substring(8).trim();
-    } else if (query.toLowerCase().startsWith('research ')) {
-      researchQuery = query.substring(9).trim();
-    } else {
-      researchQuery = query;
-    }
-    
-    // Check if the query is healthcare related
-    if (!researchService.isHealthcareQuery(researchQuery, lang)) {
-      // Not healthcare related, inform user
-      return await safeLineAPI.replyMessage(replyToken, {
-        type: 'text',
-        text: lang === 'th' 
-          ? 'ขออภัย บอทนี้ให้ข้อมูลเกี่ยวกับสุขภาพเท่านั้น โปรดถามคำถามเกี่ยวกับสุขภาพ การแพทย์ หรือโรคต่างๆ' 
-          : 'Sorry, this bot only provides healthcare information. Please ask questions about health, medical topics, or diseases.'
-      });
-    }
-    
-    // First, send a "researching" message
-    await safeLineAPI.replyMessage(replyToken, {
-      type: 'text',
-      text: getMessage('research', lang)
-    });
-    
-    // Perform the research
-    console.log(`Performing healthcare research for: ${researchQuery}`);
-    const researchResults = await researchService.researchTopic(researchQuery, lang);
-    
-    // Send the research results in a new message
-    // Note: Since we've already replied to the initial message, we need to use pushMessage instead
-    return await safeLineAPI.pushMessage(getSourceId(replyToken), {
-      type: 'text',
-      text: researchResults
-    });
-  } catch (error) {
-    console.error('Error in handleResearchQuery:', error);
-    return safeLineAPI.pushMessage(getSourceId(replyToken), {
-      type: 'text',
-      text: getMessage('errorResearch', lang)
-    });
+  
+  // Remove prefix and split into command and arguments
+  const commandText = text.substring(config.features.commandPrefix.length).trim();
+  const [command, ...args] = commandText.split(' ');
+  
+  // Log the command usage
+  logger.info(`Command received: ${command}`, { userId, args });
+  
+  // Track analytics for command usage if enabled
+  if (config.features.enableAnalytics) {
+    safeAnalytics.logBotActivity(userId, text, `Command: ${command}`, false);
   }
-};
-
-/**
- * Extract source ID from a reply token
- * This is a workaround since we can't directly get the userId from a replyToken
- * In a real implementation, you would store the userId when receiving the initial message
- */
-const getSourceId = (replyToken) => {
-  // This is a mock implementation
-  // In a real scenario, you would need to maintain a mapping of replyTokens to userIds
-  return 'U' + replyToken.substring(0, 32);
-};
-
-/**
- * Process LINE webhook events
- */
-const handleEvent = async (event) => {
-  console.log('Handling event:', JSON.stringify(event, null, 2));
   
-  // Default language is English, will be detected for text messages
-  let lang = 'en';
+  let responseText;
   
-  // Handle different event types
-  switch (event.type) {
-    case 'message':
-      if (event.message.type === 'text') {
-        // Detect language from message for text messages
-        lang = detectLanguage(event.message.text);
-        return await handleTextMessage(event);
-      } else {
-        console.log(`Unhandled message type: ${event.message.type}`);
-        return sendErrorResponse(
-          event.replyToken, 
-          getMessage('textMessagesOnly', lang)
-        );
-      }
-    
-    case 'follow':
-      // Handle when a user adds the bot as a friend
-      return await handleFollowEvent(event);
+  switch (command.toLowerCase()) {
+    case 'help':
+      responseText = messages[language].commandHelp;
+      break;
       
-    case 'unfollow':
-      // Handle when a user blocks the bot
-      console.log(`User ${event.source.userId} unfollowed the bot`);
-      return Promise.resolve(null);
+    case 'reset':
+      // Close current conversation and create new one
+      await conversationService.closeConversation(conversation);
+      const newConversation = await conversationService.getActiveConversation(userId);
+      await conversationService.addMessage(newConversation, 'system', 'Conversation reset');
+      responseText = messages[language].resetConfirmation;
+      break;
+      
+    case 'language':
+      if (args.length > 0 && (args[0] === 'en' || args[0] === 'th')) {
+        const newLang = args[0];
+        await conversationService.updateLanguage(conversation, newLang);
+        responseText = newLang === 'en' ? messages.en.languageChanged : messages.th.languageChanged;
+      } else {
+        responseText = language === 'th' 
+          ? 'กรุณาระบุภาษา (en หรือ th)' 
+          : 'Please specify a language (en or th)';
+      }
+      break;
+      
+    case 'feedback':
+      const feedback = args.join(' ').trim();
+      if (feedback) {
+        logger.info(`Feedback received from user`, { userId, feedback });
+        // Store feedback in conversation metadata
+        if (conversation) {
+          conversation.metadata = conversation.metadata || {};
+          conversation.metadata.feedback = conversation.metadata.feedback || [];
+          conversation.metadata.feedback.push({
+            text: feedback,
+            timestamp: new Date()
+          });
+          
+          // Add to conversation history
+          await conversationService.addMessage(conversation, 'system', `Feedback: ${feedback}`);
+        }
+        
+        responseText = messages[language].feedbackThanks;
+      } else {
+        responseText = language === 'th' 
+          ? 'กรุณาระบุข้อเสนอแนะของคุณ เช่น /feedback ข้อความของคุณ' 
+          : 'Please provide your feedback, e.g., /feedback your message';
+      }
+      break;
       
     default:
-      console.log(`Unhandled event type: ${event.type}`);
-      return Promise.resolve(null);
+      responseText = messages[language].unknownCommand;
   }
-};
-
-/**
- * Handle follow events (when a user adds the bot as a friend)
- */
-const handleFollowEvent = async (event) => {
-  try {
-    const { userId } = event.source;
-    
-    // Get user profile
-    const profile = await safeLineAPI.getProfile(userId);
-    
-    // Default to English for welcome message, can be changed later
-    const lang = 'en';
-    
-    // Welcome message
-    const message = {
-      type: 'text',
-      text: getMessage('welcome', lang, profile.displayName)
-    };
-    
-    console.log('Sending welcome message:', JSON.stringify(message, null, 2));
-    return await safeLineAPI.replyMessage(event.replyToken, message);
-  } catch (error) {
-    console.error('Error in handleFollowEvent:', error);
-    return sendErrorResponse(event.replyToken, 'Welcome! Type "help" to see what I can do!');
+  
+  // Send response
+  await safeReplyMessage(replyToken, { type: 'text', text: responseText });
+  
+  // Add bot response to conversation
+  if (conversation) {
+    await conversationService.addMessage(conversation, 'assistant', responseText);
   }
+  
+  return true;
 };
 
 /**
- * Send a text message reply
- * @param {string} token - Reply token
- * @param {string} text - Message text
- * @param {string} language - Language code
- * @returns {Promise} - LINE API response
+ * Detect healthcare topics in a message
+ * @param {string} message - User message
+ * @param {string} lang - Language code
+ * @returns {Array<string>} Detected topics
  */
-const sendTextMessage = (token, text, language = 'en') => {
-  // Process message to fit LINE's limits
-  const processedText = processMessageForLineLength(text, language);
+const detectHealthcareTopics = (message, lang) => {
+  const topics = [];
+  const lowerMessage = message.toLowerCase();
   
-  return safeLineAPI.replyMessage(token, {
-    type: 'text',
-    text: processedText
-  });
+  // HIV-related keywords
+  if (/hiv|เอชไอวี|aids|เอดส์/.test(lowerMessage)) {
+    topics.push('hiv');
+  }
+  
+  // STD-related keywords
+  if (/std|sti|sexually transmitted|โรคติดต่อทางเพศ|กามโรค/.test(lowerMessage)) {
+    topics.push('std');
+  }
+  
+  // Prevention-related keywords
+  if (/prevent|protect|condom|ป้องกัน|ถุงยาง|การคุมกำเนิด/.test(lowerMessage)) {
+    topics.push('prevention');
+  }
+  
+  // Testing-related keywords
+  if (/test|check|screen|ตรวจ|การตรวจ|คัดกรอง/.test(lowerMessage)) {
+    topics.push('testing');
+  }
+  
+  // Treatment-related keywords
+  if (/treat|cure|medicine|drug|therapy|รักษา|ยา|การบำบัด/.test(lowerMessage)) {
+    topics.push('treatment');
+  }
+  
+  // If no specific topics detected but it's a healthcare query
+  if (topics.length === 0) {
+    topics.push('general_healthcare');
+  }
+  
+  return topics;
 };
 
-/**
- * Send a simple greeting message
- * @param {string} replyToken - LINE reply token
- * @param {string} language - Language code
- * @returns {Promise} - LINE API response
- */
-const sendSimpleGreeting = (replyToken, language = 'en') => {
-  const greeting = language === 'th' 
-    ? 'สวัสดีค่ะ/ครับ ยินดีต้อนรับสู่บริการให้ข้อมูลสุขภาพของเรา คุณสามารถถามคำถามเกี่ยวกับสุขภาพหรือโรคติดต่อทางเพศสัมพันธ์ได้เลยค่ะ/ครับ' 
-    : 'Hello! Welcome to our healthcare information service. Feel free to ask any questions about health or sexually transmitted infections.';
-  
-  return sendTextMessage(replyToken, greeting, language);
-};
-
-// Test the line configuration
-if (isDevelopment) {
-  console.log('Skipping LINE client configuration test in development mode');
-} else {
-  safeLineAPI.getProfile('test')
-    .then(() => console.log('LINE client configuration test: OK'))
-    .catch(error => {
-      if (error.statusCode === 404) {
-        console.log('LINE client configuration seems valid (404 is expected for test user)');
-      } else {
-        console.error('LINE client configuration test failed:', error.message);
-      }
-    });
-}
-
+// Export the main event handler and any other public functions
 module.exports = {
   handleEvent,
-  client: safeLineAPI,
-  storeConversationContext,
-  getConversationContext
-}; 
+  detectLanguage,
+  isGreeting,
+  handleCommand
+};

@@ -1,67 +1,74 @@
 const express = require('express');
-const { middleware } = require('@line/bot-sdk');
-const config = require('../../config/config');
-const lineBotService = require('../services/lineBotService');
-
 const router = express.Router();
+const line = require('@line/bot-sdk');
+const lineBotService = require('../services/lineBotService');
+const config = require('../../config/config');
 
-// LINE middleware for signature verification
-// We need to use the raw body parser for LINE webhook validation
-router.use(express.json({
-  verify: (req, res, buf) => {
-    req.rawBody = buf.toString();
-  }
-}));
+// Create LINE middleware.
+// This middleware will verify the signature and parse the JSON body.
+const lineMiddleware = line.middleware({
+  channelSecret: config.line.channelSecret
+  // Note: channelAccessToken is not needed for the middleware itself,
+  // but for the client making API calls later.
+});
 
-// Configure LINE middleware with proper settings
-router.post('/', middleware({
-  channelSecret: config.line.channelSecret,
-  channelAccessToken: config.line.channelAccessToken
-}), async (req, res) => {
+// Main webhook endpoint
+// The lineMiddleware handles signature verification and JSON parsing.
+router.post('/', lineMiddleware, async (req, res) => {
   try {
-    // Debug log
-    console.log('Webhook received event:', JSON.stringify(req.body, null, 2));
+    console.log('Webhook received:', JSON.stringify(req.body));
     
-    const events = req.body.events;
-    
-    if (!events || events.length === 0) {
-      console.log('No events in the request');
-      return res.status(200).end();
+    // Check if the request body is valid
+    if (!req.body || !req.body.events) {
+      console.error('Invalid webhook request body');
+      return res.status(400).json({ error: 'Invalid request body' });
     }
     
-    // Process all events asynchronously
-    await Promise.all(events.map(async (event) => {
-      console.log('Processing event:', JSON.stringify(event, null, 2));
-      try {
-        await lineBotService.handleEvent(event);
-        console.log('Event processed successfully');
-      } catch (error) {
-        console.error('Error processing event:', error);
-      }
-    }));
+    // Process each event in the webhook
+    const events = req.body.events;
+    const results = await Promise.all(
+      events.map(async (event) => {
+        try {
+          // Process the event
+          return await lineBotService.handleEvent(event);
+        } catch (error) {
+          console.error(`Error processing event ${event.type}:`, error);
+          return { error: error.message };
+        }
+      })
+    );
     
-    // Respond with 200 OK to LINE platform
-    res.status(200).end();
-  } catch (err) {
-    console.error('Error handling webhook events:', err);
-    res.status(500).end();
+    // Return a 200 response to LINE
+    res.status(200).json({ results });
+  } catch (error) {
+    console.error('Error processing webhook:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 // Health check endpoint
 router.get('/health', (req, res) => {
-  res.status(200).json({ status: 'ok' });
-});
-
-// Test endpoint
-router.get('/test', (req, res) => {
-  res.status(200).json({ 
-    message: 'Webhook route is working', 
-    config: {
-      hasChannelSecret: !!config.line.channelSecret,
-      hasChannelAccessToken: !!config.line.channelAccessToken
-    }
+  res.status(200).json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    service: 'line-webhook',
+    version: process.env.npm_package_version || '1.0.0'
   });
 });
 
-module.exports = router; 
+// Test endpoint for verifying configuration
+router.get('/test', (req, res) => {
+  const lineConfig = {
+    hasChannelSecret: !!config.line.channelSecret,
+    hasChannelAccessToken: !!config.line.channelAccessToken,
+    environment: process.env.NODE_ENV || 'development'
+  };
+  
+  res.status(200).json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    config: lineConfig
+  });
+});
+
+module.exports = router;

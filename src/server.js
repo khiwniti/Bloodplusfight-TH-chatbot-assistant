@@ -1,53 +1,54 @@
-const express = require('express');
-const cors = require('cors');
+const app = require('./app');
 const config = require('../config/config');
 const connectDB = require('../config/db');
-const webhookRoutes = require('./routes/webhook');
 
 // Connect to MongoDB in production or if explicitly enabled
 const shouldConnectDB = process.env.NODE_ENV === 'production' || process.env.USE_MONGODB === 'true';
 if (shouldConnectDB) {
-  connectDB();
+  try {
+    console.log('Attempting to connect to MongoDB...');
+    connectDB()
+      .then(() => {
+        console.log('MongoDB connected successfully');
+      })
+      .catch(err => {
+        console.error('MongoDB connection failed, but continuing without database:', err.message);
+        console.log('The application will work with limited functionality (no user data persistence)');
+      });
+  } catch (error) {
+    console.error('Error initializing MongoDB connection:', error.message);
+    console.log('Continuing without database connection');
+  }
 } else {
-  console.log('MongoDB connection skipped');
+  console.log('MongoDB connection skipped - running in database-less mode');
 }
-
-const app = express();
-
-// Middleware
-app.use(cors());
-
-// Don't use express.json() here as it's handled in the webhook route
-// to preserve the raw body for LINE signature validation
-app.use(express.urlencoded({ extended: true }));
-
-// Static files
-app.use(express.static('public'));
-
-// Routes - webhook routes handle their own body parsing
-app.use('/webhook', webhookRoutes);
-
-// Apply JSON parsing for other routes
-app.use('/api', express.json(), (req, res, next) => {
-  next();
-});
-
-// Home route
-app.get('/', (req, res) => {
-  res.send('LINE ChatBot Server is running');
-});
 
 // Start the server
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.NODE_ENV === 'production' ? '0.0.0.0' : 'localhost';
 
 const server = app.listen(PORT, HOST, async () => {
-  console.log(`Server running on ${HOST}:${PORT}`);
+  console.log(`Server Configuration:`, {
+    port: PORT,
+    researchEnabled: config.research.enabled
+  });
+  
+  console.log(`LINE Bot Configuration:`, {
+    hasChannelSecret: !!config.line.channelSecret,
+    hasChannelAccessToken: !!config.line.channelAccessToken
+  });
+  
   const isProduction = process.env.NODE_ENV === 'production';
+  if (!isProduction) {
+    console.log(`Running in development mode with mock LINE client`);
+    console.log(`Skipping LINE client configuration test in development mode`);
+  }
+  
+  console.log(`Server running on ${HOST}:${PORT}`);
   console.log(`Environment: ${isProduction ? 'Production' : 'Development'}`);
   
   if (!isProduction) {
-    console.log(`Local URL: http://localhost:${PORT}`);
+    console.log(`Local URL: http://${HOST}:${PORT}`);
   } else {
     console.log(`Deployed on Render`);
   }
@@ -60,4 +61,16 @@ process.on('SIGINT', () => {
     console.log('Server closed');
     process.exit(0);
   });
-}); 
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+  // Keep the server running despite uncaught exceptions
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  // Keep the server running despite unhandled rejections
+});

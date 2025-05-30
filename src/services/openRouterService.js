@@ -1,328 +1,178 @@
 const axios = require('axios');
 const config = require('../../config/config');
-const researchService = require('./researchService');
-const healthcareService = require('./healthcareService');
+const cachedResponseService = require('./cachedResponseService');
+
+// Create default config object if not available
+const defaultConfig = {
+  openRouter: {
+    apiKey: process.env.OPENROUTER_API_KEY,
+    model: 'deepseek/deepseek-r1-0528:free',
+    retryCount: process.env.OPENROUTER_RETRY_COUNT || 3,
+    retryDelay: process.env.OPENROUTER_RETRY_DELAY || 3000,
+    timeout: process.env.OPENROUTER_TIMEOUT || 20000,
+    alternativeModel: process.env.OPENROUTER_ALTERNATIVE_MODEL || 'google/gemini-pro:free',
+    enableModelFallback: process.env.OPENROUTER_ENABLE_MODEL_FALLBACK === 'true'
+  }
+};
+
+const openRouterConfig = config?.openRouter || defaultConfig.openRouter;
 
 /**
- * Generate response using OpenRouter API with context
- * @param {string} userMessage - User message
- * @param {object} context - Context (customer data, language, etc.)
- * @returns {Promise<string>} - AI-generated response
+ * Generate a response using OpenRouter AI
+ * @param {string} userMessage - The user's message
+ * @param {Object} context - The context for the conversation
+ * @returns {Promise<string>} - The AI-generated response
  */
-const generateResponse = async (userMessage, context = {}) => {
-  try {
-    const language = context.language || 'en';
+const generateResponse = async (userMessage, context) => {
+  console.log('Generating response for:', userMessage);
+  
+  // Check for cached responses first
+  if (process.env.USE_CACHED_RESPONSES === 'true') {
+    const cachedResponse = cachedResponseService.getCachedResponse(userMessage, context.language);
+    if (cachedResponse) {
+      console.log('Using cached response for query:', userMessage);
+      return cachedResponse;
+    }
+  }
+  
+  // Skip OpenRouter API call if configured to do so
+  if (process.env.SKIP_OPENROUTER_CALLS === 'true') {
+    console.log('Skipping OpenRouter API call as configured');
     
-    console.log(`Generating response with OpenRouter for "${userMessage}" (${language})`);
-    console.log('Context keys:', Object.keys(context));
+    // Return a generic response based on the language
+    const language = context.language || 'th';
     
-    // Build system message with context
-    let systemMessage = 'You are a helpful LINE bot assistant for a healthcare organization. ';
-    systemMessage += 'Provide accurate, friendly, conversational responses that sound natural, not robotic. ';
-    systemMessage += 'Maintain conversation continuity by referencing previous messages when appropriate. ';
-    
-    // Add language instructions
-    if (language === 'th') {
-      systemMessage += `\nPlease respond in formal, official Thai language (ภาษาไทยแบบทางการ) with proper grammar and natural conversational style.
-Use คะ/ครับ appropriately for formal communication. Avoid casual language, slang, or overly informal expressions.
-For medical and healthcare topics, use precise medical terminology where appropriate, but explain complex terms.
-Format your responses with proper spacing and paragraph breaks according to Thai language rules.
-When discussing healthcare information, maintain a professional, trustworthy tone appropriate for official healthcare communication.
-If this is a follow-up question, reference the previous conversation for continuity.`;
-    } else {
-      systemMessage += `\nPlease respond in conversational English with a friendly, professional tone.
-Avoid overly formal language and make your responses sound natural and personalized.
-If this is a follow-up question, reference the previous conversation for continuity.`;
+    // Check for cached fallback first
+    if (userMessage.toLowerCase().includes('hiv') || 
+        userMessage.toLowerCase().includes('เอชไอวี') || 
+        userMessage.toLowerCase().includes('เอดส์')) {
+      // Return generic HIV response
+      return language === 'en' 
+        ? "HIV (Human Immunodeficiency Virus) is a virus that attacks the body's immune system. With proper medical treatment, people with HIV can live long, healthy lives. Please consult a healthcare professional for specific advice."
+        : "เอชไอวี (HIV) คือไวรัสที่โจมตีระบบภูมิคุ้มกันของร่างกาย ด้วยการรักษาทางการแพทย์ที่เหมาะสม ผู้มีเชื้อเอชไอวีสามารถมีชีวิตที่ยืนยาวและมีสุขภาพดีได้ โปรดปรึกษาบุคลากรทางการแพทย์สำหรับคำแนะนำเฉพาะ";
     }
     
-    // Add healthcare context if available
-    if (context.healthcareContext) {
-      systemMessage += `\n\nThis is a healthcare-related query that requires professional medical information. 
-You must provide accurate healthcare information using official medical terminology with clear explanations.
-Maintain formal tone appropriate for medical advice while being accessible and understandable.
-Always remind users to consult healthcare professionals for personalized medical advice.`;
-    }
-    
-    // Prepare customer context
-    const customerContext = {
-      name: context.customerName || 'Customer',
-      preferences: context.preferences || [],
-      purchaseHistory: context.purchaseHistory || []
-    };
-    
-    // Prepare messages for the API call
-    const messages = [
-      { role: 'system', content: systemMessage },
-      { role: 'user', content: `Customer name: ${customerContext.name}\nLanguage: ${language}\nMessage: ${userMessage}` }
-    ];
-    
-    // Add conversation history when available
-    if (context.conversationHistory) {
-      console.log('Adding conversation history to context');
-      
-      // If this is a continuation, insert conversation history for context
-      messages.splice(1, 0, { 
-        role: 'assistant',
-        content: `Previous topic: We were discussing healthcare topics. Your previous query was about "${context.conversationHistory.lastQuery}". I'll continue our conversation about healthcare information.`
-      });
-      
-      if (context.healthcareContext?.isContinuation) {
-        messages.push({ 
-          role: 'user',
-          content: `This is a follow-up question to my previous question about "${context.conversationHistory.lastQuery}". Please maintain continuity in your response.`
+    return language === 'en'
+      ? "Thank you for your question. I'm currently experiencing technical limitations. Please try again later or rephrase your question."
+      : "ขอบคุณสำหรับคำถามของคุณ ขณะนี้ระบบกำลังประสบข้อจำกัดทางเทคนิค โปรดลองอีกครั้งในภายหลังหรือถามคำถามในรูปแบบอื่น";
+  }
+  
+  // Prepare conversation history for context
+  const messages = [];
+  
+  // Add system message with appropriate context
+  let systemContent = '';
+  if (context.healthcareContext && context.healthcareContext.isHealthcareQuery) {
+    systemContent = context.language === 'en'
+      ? `You are a friendly and helpful healthcare assistant, specializing in information about HIV, STDs, and sexual health. Maintain a professional but accessible tone. Provide accurate, non-judgmental information. Provide evidence-based medical information and clearly indicate when something is your opinion versus accepted medical fact. Keep responses concise (under 2000 characters) but comprehensive. For health questions, prioritize accuracy and evidence-based information. Recommend consulting healthcare professionals for personalized advice.
+
+Health context: ${JSON.stringify(context.healthcareContext)}`
+      : `คุณเป็นผู้ช่วยด้านสุขภาพที่เป็นมิตรและมีประโยชน์ เชี่ยวชาญด้านข้อมูลเกี่ยวกับเอชไอวี โรคติดต่อทางเพศสัมพันธ์ และสุขภาพทางเพศ รักษาโทนที่เป็นมืออาชีพแต่เข้าถึงได้ ให้ข้อมูลที่ถูกต้องและไม่ตัดสิน ให้ข้อมูลที่มีหลักฐานทางการแพทย์รองรับและระบุให้ชัดเจนเมื่อสิ่งใดเป็นความเห็นของคุณเทียบกับข้อเท็จจริงทางการแพทย์ที่ยอมรับกัน รักษาการตอบให้กระชับ (ไม่เกิน 2000 ตัวอักษร) แต่ให้ข้อมูลครบถ้วน สำหรับคำถามด้านสุขภาพ ให้ความสำคัญกับความถูกต้องและข้อมูลที่มีหลักฐานรองรับ แนะนำให้ปรึกษาบุคลากรทางการแพทย์สำหรับคำแนะนำส่วนบุคคล
+
+บริบทด้านสุขภาพ: ${JSON.stringify(context.healthcareContext)}`;
+  } else {
+    systemContent = context.language === 'en'
+      ? `You are a helpful assistant. Provide accurate and relevant information in response to user queries. Be concise but comprehensive in your answers.`
+      : `คุณเป็นผู้ช่วยที่มีประโยชน์ ให้ข้อมูลที่ถูกต้องและเกี่ยวข้องในการตอบคำถามของผู้ใช้ ตอบแบบกระชับแต่ครอบคลุม`;
+  }
+  
+  messages.push({ role: 'system', content: systemContent });
+  
+  // Add conversation history if available
+  if (context.conversationHistory && Array.isArray(context.conversationHistory)) {
+    // Add up to 5 recent messages from history
+    for (let i = Math.max(0, context.conversationHistory.length - 5); i < context.conversationHistory.length; i++) {
+      const message = context.conversationHistory[i];
+      if (message.role === 'user' || message.role === 'assistant') {
+        messages.push({
+          role: message.role,
+          content: message.content,
+          timestamp: message.timestamp
         });
       }
     }
-    
-    // Add healthcare research if available
-    if (context.healthcareResearch) {
-      messages.push({ 
-        role: 'assistant',
-        content: `I've found this healthcare information for you: ${context.healthcareResearch}`
-      });
-      messages.push({ 
-        role: 'user',
-        content: `Based on this healthcare information, please provide a comprehensive, accurate and professional response to my question: "${userMessage}"`
-      });
-    }
-    
-    // Add healthcare data when available for better context
-    if (context.healthcareContext && context.healthcareContext.healthcareData) {
-      // Convert the healthcare data object to a string
-      const healthcareDataString = JSON.stringify(context.healthcareContext.healthcareData);
+  }
+  
+  // Add current user message
+  messages.push({ role: 'user', content: userMessage });
+  
+  // Make API request with retries
+  const retryCount = parseInt(openRouterConfig.retryCount) || 3;
+  const retryDelay = parseInt(openRouterConfig.retryDelay) || 3000;
+  
+  let useFallbackModel = false;
+  let finalError = null;
+  
+  // Try primary model first
+  for (let attempt = 1; attempt <= retryCount; attempt++) {
+    try {
+      const model = useFallbackModel ? openRouterConfig.alternativeModel : openRouterConfig.model;
+      console.log(`OpenRouter API request attempt ${attempt}/${retryCount} using model: ${model}`);
       
-      messages.push({ 
-        role: 'assistant',
-        content: `I have access to verified healthcare information to help answer your query accurately.`
-      });
-    }
-    
-    // Make OpenRouter API call
-    const response = await axios.post(
-      'https://openrouter.ai/api/v1/chat/completions',
-      {
-        model: config.openRouter.model,
+      const response = await axios.post('https://openrouter.ai/api/v1/chat/completions', {
+        model: model,
         messages: messages,
-        temperature: 0.8,  // Slightly higher for more varied responses
-        max_tokens: 500
-      },
-      {
+        temperature: 0.7,
+        max_tokens: 1000,
+        top_p: 0.9,
+        stream: false
+      }, {
         headers: {
-          'Authorization': `Bearer ${config.openRouter.apiKey}`,
-          'HTTP-Referer': config.openRouter.httpReferer || 'https://line-bot-app.com',
-          'X-Title': config.openRouter.xTitle || 'LINE Bot Healthcare',
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${openRouterConfig.apiKey}`,
+        },
+        timeout: parseInt(openRouterConfig.timeout) || 20000
+      });
+      
+      console.log('OpenRouter API response received successfully');
+      return response.data.choices[0].message.content;
+    } catch (error) {
+      finalError = error;
+      
+      if (error.response && error.response.status === 429) {
+        console.error(`OpenRouter API error (attempt ${attempt}/${retryCount}): Request failed with status code 429`);
+        
+        // If we've tried all attempts with the primary model and model fallback is enabled, try the alternative model
+        if (attempt === retryCount && !useFallbackModel && openRouterConfig.enableModelFallback === true) {
+          console.log('Switching to alternative model after rate limit on primary model');
+          useFallbackModel = true;
+          attempt = 0; // Reset attempt counter for the alternative model
+          continue;
+        }
+        
+        // Wait before retrying
+        if (attempt < retryCount || (useFallbackModel && attempt < retryCount)) {
+          console.log(`Retrying in ${retryDelay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+        }
+      } else {
+        // For other errors, log and continue retrying
+        console.error(`OpenRouter API error (attempt ${attempt}/${retryCount}):`, error.message);
+        
+        if (attempt < retryCount) {
+          console.log(`Retrying in ${retryDelay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
         }
       }
-    );
-    
-    // Extract and return the response content
-    if (response.data && 
-        response.data.choices && 
-        response.data.choices.length > 0 && 
-        response.data.choices[0].message && 
-        response.data.choices[0].message.content) {
-      
-      const rawResponse = response.data.choices[0].message.content.trim();
-      return processAIResponse(rawResponse);
-    }
-    
-    throw new Error('Invalid response format from OpenRouter API');
-  } catch (error) {
-    console.error('Error in OpenRouter generation:', error.response?.data || error.message);
-    throw error;
-  }
-};
-
-/**
- * Get relevant healthcare context based on the query
- * @param {string} query - User query
- * @param {string} lang - Language code
- * @returns {string} - Healthcare context for the AI
- */
-const getHealthcareContext = (query, lang) => {
-  const lowerQuery = query.toLowerCase();
-  const knowledge = healthcareService.healthcareKnowledge[lang] || healthcareService.healthcareKnowledge.en;
-  let context = '';
-  
-  // Extract relevant sections based on query content
-  if (lowerQuery.includes('hiv') || lowerQuery.includes('เอชไอวี')) {
-    context += knowledge.understanding.hiv + '\n\n';
-    
-    // If query asks about prevention
-    if (lowerQuery.includes('prevent') || 
-        lowerQuery.includes('protect') || 
-        lowerQuery.includes('ป้องกัน')) {
-      context += knowledge.prevention.condoms + '\n' + knowledge.prevention.prep + '\n\n';
-    }
-    
-    // If query asks about treatment
-    if (lowerQuery.includes('treat') || 
-        lowerQuery.includes('cure') || 
-        lowerQuery.includes('รักษา')) {
-      context += knowledge.treatment.hiv + '\n\n';
     }
   }
   
-  // Add general STD information if mentioned
-  if (lowerQuery.includes('std') || 
-      lowerQuery.includes('sti') || 
-      lowerQuery.includes('โรคติดต่อทางเพศสัมพันธ์')) {
-    context += knowledge.understanding.stds + '\n\n';
+  // If all attempts failed, use cached response as fallback
+  console.error('All OpenRouter API attempts failed, using fallback response');
+  
+  // Try to find a cached response first
+  const cachedResponse = cachedResponseService.getCachedResponse(userMessage, context.language);
+  if (cachedResponse) {
+    console.log('Using cached response as fallback');
+    return cachedResponse;
   }
   
-  // Add information about testing if mentioned
-  if (lowerQuery.includes('test') || 
-      lowerQuery.includes('check') || 
-      lowerQuery.includes('ตรวจ')) {
-    context += knowledge.testing.locations + '\n' + knowledge.testing.process + '\n\n';
-  }
-  
-  // If not enough specific context, add general information
-  if (context.length < 100) {
-    if (lowerQuery.includes('prevent') || lowerQuery.includes('ป้องกัน')) {
-      context += knowledge.prevention.condoms + '\n' + knowledge.prevention.testing + '\n\n';
-    } else if (lowerQuery.includes('symptom') || lowerQuery.includes('อาการ')) {
-      context += knowledge.understanding.symptoms + '\n\n';
-    }
-  }
-  
-  // Always add the disclaimer
-  context += knowledge.disclaimer;
-  
-  return context;
-};
-
-/**
- * Generate a response with a custom system prompt
- * @param {string} query - User query
- * @param {string} contentContext - Additional context from research
- * @param {string} customSystemPrompt - Custom system prompt
- * @returns {Promise<string>} - AI-generated response
- */
-const generateCustomResponse = async (query, contentContext, customSystemPrompt) => {
-  try {
-    console.log('Generating custom response with OpenRouter');
-    
-    // Determine language
-    const language = detectLanguage(query);
-    
-    // Prepare the messages
-    const messages = [
-      { role: 'system', content: customSystemPrompt },
-      { role: 'user', content: `Query: ${query}\n\nContent: ${contentContext}` }
-    ];
-    
-    // Make the OpenRouter API call
-    const response = await axios.post(
-      'https://openrouter.ai/api/v1/chat/completions',
-      {
-        model: config.openRouter.model,
-        messages: messages,
-        temperature: 0.5, // Lower temperature for more factual, consistent responses
-        max_tokens: 600
-      },
-      {
-        headers: {
-          'Authorization': `Bearer ${config.openRouter.apiKey}`,
-          'HTTP-Referer': config.openRouter.httpReferer || 'https://line-bot-app.com',
-          'X-Title': config.openRouter.xTitle || 'LINE Bot Healthcare',
-          'Content-Type': 'application/json'
-        }
-      }
-    );
-    
-    // Extract and return the response content
-    if (response.data && 
-        response.data.choices && 
-        response.data.choices.length > 0 && 
-        response.data.choices[0].message && 
-        response.data.choices[0].message.content) {
-      
-      const rawResponse = response.data.choices[0].message.content.trim();
-      return processAIResponse(rawResponse);
-    }
-    
-    throw new Error('Invalid response format from OpenRouter API');
-  } catch (error) {
-    console.error('Error in OpenRouter custom response generation:', error.response?.data || error.message);
-    throw error;
-  }
-};
-
-/**
- * Detect language from text
- * @param {string} text - Input text
- * @returns {string} - 'th' for Thai, 'en' for English/others
- */
-const detectLanguage = (text) => {
-  // Simple Thai language detection - if there are Thai characters in the text
-  const thaiPattern = /[\u0E00-\u0E7F]/;
-  return thaiPattern.test(text) ? 'th' : 'en';
-};
-
-/**
- * Process AI response to remove any system instructions
- * @param {string} response - AI response text
- * @returns {string} - Processed response
- */
-const processAIResponse = (response) => {
-  if (!response) return '';
-  
-  // Check for some common system instruction patterns in the full response
-  const fullCleaningPatterns = [
-    // Match patterns like "I'll provide information about X" at the beginning of the text
-    /^(I'll|Let me|I will|I am|I'm going to).+?(provide|explain|respond|answer|address).+?\n\n/is,
-    
-    // Match patterns like "Here is information about X" at the beginning of the text
-    /^(Here is|Here's|Following is).+?(information|response|answer).+?\n\n/is,
-  ];
-  
-  // Try cleaning the full response first
-  for (const pattern of fullCleaningPatterns) {
-    if (pattern.test(response)) {
-      response = response.replace(pattern, '');
-      console.log('Removed system instructions from response beginning');
-    }
-  }
-  
-  // Split the response into paragraphs
-  const paragraphs = response.split('\n\n');
-  if (paragraphs.length <= 1) {
-    return response; // Not enough paragraphs to process
-  }
-  
-  // Check if first paragraphs look like system instructions
-  const firstParagraph = paragraphs[0].toLowerCase();
-  
-  const instructionWords = [
-    'i\'ll', 'i will', 'let me', 'remember', 'as requested', 'i can', 'i\'m going to',
-    'here is', 'here\'s', 'responding to', 'regarding your', 'to answer',
-    'you asked', 'for your query', 'in response', 'looking at', 'please find',
-    'about hiv', 'about your question', 'based on your', 'following your', 
-    'key points', 'points to cover', 'topics to cover'
-  ];
-  
-  // Check if the first paragraph contains instruction words
-  if (instructionWords.some(word => firstParagraph.includes(word))) {
-    // Remove the first paragraph if it looks like instruction
-    console.log('Removed introductory system instruction paragraph');
-    return paragraphs.slice(1).join('\n\n').trim();
-  }
-  
-  // Check if first two paragraphs are both short and look like instructions
-  if (paragraphs.length > 2 && 
-      paragraphs[0].length < 150 && 
-      paragraphs[1].length < 200 &&
-      instructionWords.some(word => (paragraphs[0] + paragraphs[1]).toLowerCase().includes(word))) {
-    console.log('Removed first two paragraphs that appear to be system instructions');
-    return paragraphs.slice(2).join('\n\n').trim();
-  }
-  
-  return response.trim();
+  // If no cached response, return a generic fallback
+  return context.language === 'en'
+    ? "I'm sorry, but I'm currently experiencing technical difficulties. For HIV-related questions, please consult a healthcare professional for accurate information."
+    : "ขออภัย ขณะนี้ระบบกำลังประสบปัญหาทางเทคนิค สำหรับคำถามเกี่ยวกับเอชไอวี โปรดปรึกษาบุคลากรทางการแพทย์เพื่อข้อมูลที่ถูกต้อง";
 };
 
 module.exports = {
-  generateResponse,
-  generateCustomResponse
-}; 
+  generateResponse
+};
