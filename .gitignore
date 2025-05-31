@@ -3,6 +3,7 @@ node_modules/
 npm-debug.log
 yarn-debug.log
 yarn-error.log
+package-lock.json.old
 
 # Environment variables
 .env
@@ -10,16 +11,55 @@ yarn-error.log
 .env.development.local
 .env.test.local
 .env.production.local
+.env.production
 
 # Log files
-logs
+logs/
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Cache files
+.cache/
+.temp/
+.parcel-cache/
+
+# Testing
+coverage/
+.nyc_output/
+jest-report/
+
+# Build directories
+dist/
+build/
+out/
+.next/
+.nuxt/
+public/dist/
 
 # Optional npm cache directory
 .npm
 
 # Optional eslint cache
 .eslintcache
+
+# IDE files
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
 
 # OS generated files
 .DS_Store
@@ -28,4 +68,31 @@ logs
 .Spotlight-V100
 .Trashes
 ehthumbs.db
-Thumbs.db 
+Thumbs.db
+
+# Docker
+docker-compose.override.yml
+.docker/
+volumes/
+
+# MongoDB
+data/
+mongod.lock
+mongodb.log
+dbpath/
+
+# Line specific
+line-bot-sdk-logs/
+
+# Security
+.env.vault
+*.pem
+*.key
+*.cert
+*.crt
+
+# Temp files
+tmp/
+temp/
+.tmp/
+.temp/

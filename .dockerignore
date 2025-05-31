@@ -1,0 +1,37 @@
+# Docker build files
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Node files
+node_modules
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+
+# Development files
+.git
+.github
+.gitignore
+.vscode
+*.md
+*.log
+
+# Environment variables
+.env
+.env.*
+
+# Local data
+data/
+logs/
+*.dump
+
+# Test files
+test/
+tests/
+__tests__/
+coverage/
+
+# Miscellaneous
+.DS_Store
+Thumbs.db

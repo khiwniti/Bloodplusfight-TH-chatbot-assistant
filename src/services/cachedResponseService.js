@@ -1,683 +1,244 @@
 /**
  * Cached Response Service
  * 
- * Provides pre-written, accurate responses for common healthcare queries
- * to avoid hitting API rate limits with OpenRouter.
+ * Provides tiered caching with memory and persistent storage options
+ * for improved performance and reliability in production environments.
  */
-
-// Common HIV-related queries and answers in Thai
-const hivResponses = {
-  'hiv คือ': `เอชไอวี (HIV) คือ Human Immunodeficiency Virus หรือไวรัสภูมิคุ้มกันบกพร่องในมนุษย์ เป็นไวรัสที่โจมตีระบบภูมิคุ้มกันของร่างกาย โดยเฉพาะเซลล์ CD4 ซึ่งเป็นเซลล์เม็ดเลือดขาวที่สำคัญในการต่อสู้กับการติดเชื้อ
-
-เมื่อเอชไอวีทำลายเซลล์ CD4 จำนวนมาก ทำให้ระบบภูมิคุ้มกันอ่อนแอลง ร่างกายจะไม่สามารถต่อสู้กับเชื้อโรคต่างๆ ได้อย่างมีประสิทธิภาพ เมื่อปล่อยไว้โดยไม่ได้รับการรักษา เอชไอวีสามารถพัฒนาไปสู่โรคเอดส์ (AIDS - Acquired Immune Deficiency Syndrome) ซึ่งเป็นระยะสุดท้ายของการติดเชื้อเอชไอวี
-
-เอชไอวีติดต่อผ่าน:
-- การมีเพศสัมพันธ์โดยไม่ป้องกันกับผู้ติดเชื้อ
-- การใช้เข็มฉีดยาร่วมกับผู้ติดเชื้อ
-- การรับเลือดที่มีเชื้อเอชไอวี
-- จากแม่สู่ลูกระหว่างตั้งครรภ์ การคลอด หรือการให้นมบุตร
-
-ปัจจุบันยังไม่มีวิธีรักษาเอชไอวีให้หายขาด แต่มียาต้านไวรัส (Antiretroviral Therapy - ART) ที่มีประสิทธิภาพสูงในการควบคุมปริมาณไวรัสให้ต่ำมาก ช่วยให้ผู้ติดเชื้อมีคุณภาพชีวิตที่ดีและมีอายุยืนยาวใกล้เคียงกับคนทั่วไป
-
-การป้องกันการติดเชื้อเอชไอวีทำได้โดย:
-- ใช้ถุงยางอนามัยทุกครั้งเมื่อมีเพศสัมพันธ์
-- ไม่ใช้เข็มฉีดยาร่วมกับผู้อื่น
-- การใช้ยาป้องกันก่อนการสัมผัสเชื้อ (PrEP) สำหรับผู้ที่มีความเสี่ยงสูง
-- การใช้ยาป้องกันหลังการสัมผัสเชื้อ (PEP) ภายใน 72 ชั่วโมงหลังมีความเสี่ยง
-
-หากคุณมีข้อสงสัยเกี่ยวกับเอชไอวีหรือต้องการตรวจเชื้อ แนะนำให้ปรึกษาแพทย์หรือเจ้าหน้าที่สาธารณสุข`,
-
-  'เอชไอวี คือ': `เอชไอวี (HIV) คือ Human Immunodeficiency Virus หรือไวรัสภูมิคุ้มกันบกพร่องในมนุษย์ เป็นไวรัสที่โจมตีระบบภูมิคุ้มกันของร่างกาย โดยเฉพาะเซลล์ CD4 ซึ่งเป็นเซลล์เม็ดเลือดขาวที่สำคัญในการต่อสู้กับการติดเชื้อ
-
-เมื่อเอชไอวีทำลายเซลล์ CD4 จำนวนมาก ทำให้ระบบภูมิคุ้มกันอ่อนแอลง ร่างกายจะไม่สามารถต่อสู้กับเชื้อโรคต่างๆ ได้อย่างมีประสิทธิภาพ เมื่อปล่อยไว้โดยไม่ได้รับการรักษา เอชไอวีสามารถพัฒนาไปสู่โรคเอดส์ (AIDS - Acquired Immune Deficiency Syndrome) ซึ่งเป็นระยะสุดท้ายของการติดเชื้อเอชไอวี
-
-เอชไอวีติดต่อผ่าน:
-- การมีเพศสัมพันธ์โดยไม่ป้องกันกับผู้ติดเชื้อ
-- การใช้เข็มฉีดยาร่วมกับผู้ติดเชื้อ
-- การรับเลือดที่มีเชื้อเอชไอวี
-- จากแม่สู่ลูกระหว่างตั้งครรภ์ การคลอด หรือการให้นมบุตร
-
-ปัจจุบันยังไม่มีวิธีรักษาเอชไอวีให้หายขาด แต่มียาต้านไวรัส (Antiretroviral Therapy - ART) ที่มีประสิทธิภาพสูงในการควบคุมปริมาณไวรัสให้ต่ำมาก ช่วยให้ผู้ติดเชื้อมีคุณภาพชีวิตที่ดีและมีอายุยืนยาวใกล้เคียงกับคนทั่วไป
-
-การป้องกันการติดเชื้อเอชไอวีทำได้โดย:
-- ใช้ถุงยางอนามัยทุกครั้งเมื่อมีเพศสัมพันธ์
-- ไม่ใช้เข็มฉีดยาร่วมกับผู้อื่น
-- การใช้ยาป้องกันก่อนการสัมผัสเชื้อ (PrEP) สำหรับผู้ที่มีความเสี่ยงสูง
-- การใช้ยาป้องกันหลังการสัมผัสเชื้อ (PEP) ภายใน 72 ชั่วโมงหลังมีความเสี่ยง
-
-หากคุณมีข้อสงสัยเกี่ยวกับเอชไอวีหรือต้องการตรวจเชื้อ แนะนำให้ปรึกษาแพทย์หรือเจ้าหน้าที่สาธารณสุข`,
-
-  'hiv': `เอชไอวี (HIV) คือ Human Immunodeficiency Virus หรือไวรัสภูมิคุ้มกันบกพร่องในมนุษย์ เป็นไวรัสที่โจมตีระบบภูมิคุ้มกันของร่างกาย โดยเฉพาะเซลล์ CD4
-
-เอชไอวีติดต่อผ่านการมีเพศสัมพันธ์โดยไม่ป้องกัน การใช้เข็มฉีดยาร่วมกัน การรับเลือดที่มีเชื้อ และจากแม่สู่ลูก
-
-ปัจจุบันยังไม่มีวิธีรักษาให้หายขาด แต่มียาต้านไวรัสที่ช่วยควบคุมปริมาณไวรัสได้อย่างมีประสิทธิภาพ
-
-การป้องกันที่สำคัญคือใช้ถุงยางอนามัยทุกครั้งเมื่อมีเพศสัมพันธ์ และไม่ใช้เข็มฉีดยาร่วมกับผู้อื่น`,
-
-  'เอชไอวี รักษาหายไหม': `ปัจจุบัน เอชไอวี (HIV) ยังไม่สามารถรักษาให้หายขาดได้ แต่สามารถควบคุมได้ด้วยยาต้านไวรัส (Antiretroviral Therapy หรือ ART)
-
-ยาต้านไวรัสทำงานโดยการลดปริมาณไวรัสในร่างกาย (viral load) จนถึงระดับที่ตรวจไม่พบ (undetectable) ซึ่งช่วยให้:
-- ระบบภูมิคุ้มกันของร่างกายแข็งแรงขึ้น
-- ลดความเสี่ยงในการแพร่เชื้อไปสู่ผู้อื่น (U=U: Undetectable = Untransmittable)
-- ผู้ติดเชื้อมีคุณภาพชีวิตที่ดีและอายุขัยใกล้เคียงกับคนทั่วไป
-
-ผู้ติดเชื้อต้องรับประทานยาต้านไวรัสอย่างสม่ำเสมอและต่อเนื่องตลอดชีวิต การหยุดยาอาจทำให้ไวรัสกลับมาเพิ่มจำนวนและดื้อยาได้
-
-ปัจจุบันมีการวิจัยเพื่อหาวิธีรักษาให้หายขาด เช่น การรักษาด้วยยีนบำบัด (Gene Therapy) และการปลูกถ่ายเซลล์ต้นกำเนิด แต่ยังอยู่ในขั้นทดลองและไม่ได้นำมาใช้เป็นการรักษามาตรฐานทั่วไป`,
-
-  'รักษา hiv หายไหม': `ปัจจุบัน เอชไอวี (HIV) ยังไม่สามารถรักษาให้หายขาดได้ แต่สามารถควบคุมได้ด้วยยาต้านไวรัส (Antiretroviral Therapy หรือ ART)
-
-ยาต้านไวรัสทำงานโดยการลดปริมาณไวรัสในร่างกาย (viral load) จนถึงระดับที่ตรวจไม่พบ (undetectable) ซึ่งช่วยให้:
-- ระบบภูมิคุ้มกันของร่างกายแข็งแรงขึ้น
-- ลดความเสี่ยงในการแพร่เชื้อไปสู่ผู้อื่น (U=U: Undetectable = Untransmittable)
-- ผู้ติดเชื้อมีคุณภาพชีวิตที่ดีและอายุขัยใกล้เคียงกับคนทั่วไป
-
-ผู้ติดเชื้อต้องรับประทานยาต้านไวรัสอย่างสม่ำเสมอและต่อเนื่องตลอดชีวิต การหยุดยาอาจทำให้ไวรัสกลับมาเพิ่มจำนวนและดื้อยาได้
-
-ปัจจุบันมีการวิจัยเพื่อหาวิธีรักษาให้หายขาด เช่น การรักษาด้วยยีนบำบัด (Gene Therapy) และการปลูกถ่ายเซลล์ต้นกำเนิด แต่ยังอยู่ในขั้นทดลองและไม่ได้นำมาใช้เป็นการรักษามาตรฐานทั่วไป`,
-
-  'การติดเชื้อ hiv': `การติดเชื้อเอชไอวี (HIV) เกิดได้ใน 4 ทางหลัก:
-
-1. การมีเพศสัมพันธ์โดยไม่ป้องกันกับผู้ที่มีเชื้อเอชไอวี
-   - เพศสัมพันธ์ทางช่องคลอด ทางทวารหนัก หรือทางปาก
-   - ความเสี่ยงจะสูงขึ้นถ้ามีแผลหรือการอักเสบบริเวณอวัยวะเพศหรือในปาก
-
-2. การสัมผัสเลือดที่มีเชื้อเอชไอวี
-   - การใช้เข็มฉีดยาหรืออุปกรณ์ฉีดยาร่วมกับผู้ติดเชื้อ
-   - การได้รับเลือดที่มีเชื้อ (พบน้อยมากในประเทศที่มีการตรวจคัดกรองเลือดบริจาค)
-   - การได้รับบาดแผลจากของมีคมที่ปนเปื้อนเลือดที่มีเชื้อ
-
-3. จากแม่สู่ลูก
-   - ระหว่างการตั้งครรภ์ ผ่านรก
-   - ระหว่างการคลอด เมื่อทารกสัมผัสกับเลือดหรือสารคัดหลั่งของมารดา
-   - ผ่านการให้นมบุตร
-
-4. การปลูกถ่ายอวัยวะหรือเนื้อเยื่อที่มีเชื้อ (พบน้อยมากในปัจจุบัน)
-
-เอชไอวีไม่ติดต่อผ่าน:
-- การสัมผัสร่างกายทั่วไป เช่น จับมือ กอด จูบแก้ม
-- การใช้ห้องน้ำร่วมกัน
-- การใช้ภาชนะร่วมกัน
-- การไอหรือจาม
-- แมลงกัด เช่น ยุง
-
-การป้องกันการติดเชื้อเอชไอวี:
-- ใช้ถุงยางอนามัยทุกครั้งเมื่อมีเพศสัมพันธ์
-- ไม่ใช้เข็มฉีดยาร่วมกับผู้อื่น
-- การใช้ยาป้องกันก่อนการสัมผัสเชื้อ (PrEP) สำหรับผู้ที่มีความเสี่ยงสูง
-- การใช้ยาป้องกันหลังการสัมผัสเชื้อ (PEP) ภายใน 72 ชั่วโมงหลังมีความเสี่ยง
-- หญิงตั้งครรภ์ที่มีเชื้อเอชไอวีควรได้รับการรักษาด้วยยาต้านไวรัสเพื่อป้องกันการติดเชื้อสู่ทารก`,
-
-  'วัคซีน hiv': `ปัจจุบัน (พ.ศ. 2567) ยังไม่มีวัคซีนป้องกันเอชไอวี (HIV) ที่ได้รับการรับรองให้ใช้ในมนุษย์
-
-นักวิทยาศาสตร์ทั่วโลกกำลังวิจัยและพัฒนาวัคซีนเอชไอวีมาเป็นเวลาหลายทศวรรษ แต่ยังประสบความท้าทายหลายประการ เนื่องจาก:
-
-1. เอชไอวีมีการกลายพันธุ์อย่างรวดเร็ว ทำให้ยากต่อการพัฒนาวัคซีนที่มีประสิทธิภาพกับทุกสายพันธุ์
-2. ไวรัสเอชไอวีมีกลไกหลบเลี่ยงระบบภูมิคุ้มกันที่ซับซ้อน
-3. ยังขาดความเข้าใจที่สมบูรณ์ว่าภูมิคุ้มกันแบบใดที่จะสามารถป้องกันการติดเชื้อได้อย่างมีประสิทธิภาพ
-
-มีการศึกษาวัคซีนเอชไอวีหลายการศึกษาที่อยู่ในระหว่างการทดลองทางคลินิก บางการศึกษาแสดงผลเบื้องต้นที่น่าสนใจ แต่ยังไม่มีวัคซีนที่ให้การป้องกันที่มีประสิทธิภาพเพียงพอสำหรับการใช้งานทั่วไป
-
-ในระหว่างที่รอการพัฒนาวัคซีน วิธีป้องกันการติดเชื้อเอชไอวีที่มีประสิทธิภาพที่สุดคือ:
-- การใช้ถุงยางอนามัยอย่างถูกต้องทุกครั้งเมื่อมีเพศสัมพันธ์
-- การใช้ยาป้องกันก่อนการสัมผัสเชื้อ (PrEP) สำหรับผู้ที่มีความเสี่ยงสูง
-- การรักษาด้วยยาต้านไวรัสสำหรับผู้ติดเชื้อเพื่อลดปริมาณไวรัสให้ต่ำจนไม่สามารถถ่ายทอดเชื้อได้
-- การไม่ใช้เข็มฉีดยาร่วมกัน
-
-นักวิจัยยังคงพยายามพัฒนาวัคซีนป้องกันเอชไอวี และยังมีความหวังว่าในอนาคตจะมีวัคซีนที่มีประสิทธิภาพ`,
-
-  'อาการ hiv': `อาการของการติดเชื้อเอชไอวี (HIV) แบ่งได้เป็น 3 ระยะหลัก:
-
-1. ระยะเฉียบพลัน (Acute HIV Infection)
-   - เกิดขึ้นประมาณ 2-4 สัปดาห์หลังได้รับเชื้อ
-   - อาการคล้ายไข้หวัดใหญ่หรือไข้เกลียวหัว (Flu-like symptoms)
-   - มีไข้
-   - ปวดเมื่อยตามตัว
-   - ปวดศีรษะ
-   - เจ็บคอ
-   - มีผื่นแดงตามผิวหนัง
-   - ต่อมน้ำเหลืองโต
-   - อาการมักคงอยู่ประมาณ 1-2 สัปดาห์แล้วหายไปเอง
-   - บางคนอาจไม่มีอาการในระยะนี้เลย
-
-2. ระยะไม่ปรากฏอาการ (Chronic HIV Infection)
-   - อาจไม่มีอาการใดๆ เป็นเวลาหลายปี (5-10 ปีหรือนานกว่านั้น)
-   - ไวรัสยังคงแบ่งตัวและทำลายเซลล์ CD4 อย่างช้าๆ
-   - ผู้ติดเชื้อรู้สึกแข็งแรงดี แต่สามารถแพร่เชื้อให้ผู้อื่นได้
-   - หากไม่ได้รับการรักษา ระบบภูมิคุ้มกันจะค่อยๆ อ่อนแอลง
-
-3. ระยะเอดส์ (AIDS - Acquired Immune Deficiency Syndrome)
-   - เกิดเมื่อระบบภูมิคุ้มกันถูกทำลายมาก (CD4 น้อยกว่า 200 เซลล์/มม³)
-   - มีการติดเชื้อฉวยโอกาส เช่น ปอดอักเสบจากเชื้อ Pneumocystis, วัณโรค, เยื่อหุ้มสมองอักเสบจากเชื้อรา
-   - เกิดมะเร็งบางชนิด เช่น มะเร็งต่อมน้ำเหลือง (Lymphoma), มะเร็งปากมดลูก, Kaposi's sarcoma
-   - น้ำหนักลดโดยไม่ทราบสาเหตุ
-   - ท้องเสียเรื้อรัง
-   - ไข้เรื้อรัง
-   - เหงื่อออกตอนกลางคืน
-   - อ่อนเพลียเรื้อรัง
-
-สิ่งสำคัญที่ควรทราบ:
-- ผู้ติดเชื้อเอชไอวีที่ได้รับการรักษาด้วยยาต้านไวรัสตั้งแต่เนิ่นๆ มักไม่พัฒนาไปถึงระยะเอดส์
-- อาการเหล่านี้ไม่จำเพาะเจาะจงและอาจเกิดจากสาเหตุอื่นได้
-- วิธีเดียวที่จะรู้ว่าติดเชื้อเอชไอวีหรือไม่คือการตรวจเลือด
-- การตรวจเอชไอวีเร็วที่สุดที่จะให้ผลแม่นยำคือ 2-4 สัปดาห์หลังมีความเสี่ยง (ขึ้นอยู่กับชนิดของการตรวจ)
-
-หากคุณสงสัยว่าอาจมีความเสี่ยงต่อการติดเชื้อเอชไอวี ควรปรึกษาแพทย์หรือคลินิกสุขภาพทางเพศเพื่อรับการตรวจ การวินิจฉัยและการรักษาแต่เนิ่นๆ มีความสำคัญอย่างยิ่ง`,
-
-  'การตรวจ hiv': `การตรวจเอชไอวี (HIV) มีหลายวิธี แต่ละวิธีมีระยะเวลาในการตรวจพบเชื้อ (Window Period) แตกต่างกัน:
-
-1. การตรวจแอนติบอดี (HIV Antibody Test)
-   - ตรวจหาแอนติบอดีที่ร่างกายสร้างขึ้นเพื่อต่อต้านเอชไอวี
-   - Window Period: 3-12 สัปดาห์หลังได้รับเชื้อ
-   - ทำได้ทั้งการเจาะเลือดจากเส้นเลือดดำและการเจาะเลือดจากปลายนิ้ว
-
-2. การตรวจแอนติเจน-แอนติบอดี (HIV Antigen-Antibody Test)
-   - ตรวจหาทั้งแอนติบอดีและโปรตีนของไวรัส (p24 antigen)
-   - Window Period: 2-6 สัปดาห์หลังได้รับเชื้อ
-   - เป็นการตรวจที่นิยมใช้ในโรงพยาบาลและคลินิกในปัจจุบัน
-   - มีความแม่นยำสูงมาก (มากกว่า 99.9%)
-
-3. การตรวจหาสารพันธุกรรมของไวรัส (HIV RNA or NAT Test)
-   - ตรวจหาสารพันธุกรรมของไวรัสโดยตรง
-   - Window Period: 7-14 วันหลังได้รับเชื้อ
-   - ใช้ในกรณีพิเศษ เช่น สงสัยการติดเชื้อเฉียบพลัน หรือทารกที่เกิดจากมารดาที่ติดเชื้อ
-   - มีราคาแพงกว่าการตรวจวิธีอื่น
-
-4. การตรวจเอชไอวีด้วยตนเอง (HIV Self-Test)
-   - ชุดตรวจที่ใช้ได้ด้วยตนเองที่บ้าน
-   - ใช้น้ำลายหรือเลือดจากปลายนิ้ว
-   - Window Period: ประมาณ 3 เดือนหลังได้รับเชื้อ
-   - หากผลเป็นบวก ควรไปตรวจยืนยันที่โรงพยาบาลหรือคลินิก
-
-สถานที่ที่สามารถตรวจเอชไอวีได้:
-- โรงพยาบาลรัฐและเอกชน
-- คลินิกนิรนาม (Anonymous Clinic)
-- คลินิกสุขภาพทางเพศ
-- องค์กรพัฒนาเอกชนด้านเอดส์ (NGOs)
-- ศูนย์บริการสาธารณสุข
-
-การเตรียมตัวก่อนตรวจ:
-- ไม่จำเป็นต้องงดอาหารหรือน้ำ
-- ควรตรวจหลังจากมีความเสี่ยงแล้วอย่างน้อย 2-4 สัปดาห์ (ขึ้นอยู่กับวิธีการตรวจ)
-- เตรียมใจรับผลตรวจ
-
-หากผลตรวจเป็นบวก:
-- จะมีการตรวจยืนยันด้วยวิธีอื่นเพื่อความแน่ใจ
-- มีการให้คำปรึกษาก่อนและหลังการตรวจ
-- ให้คำแนะนำเกี่ยวกับการรักษาด้วยยาต้านไวรัส
-- สามารถใช้สิทธิการรักษาได้ฟรีตามระบบหลักประกันสุขภาพของไทย
-
-หากผลตรวจเป็นลบ:
-- แนะนำให้ตรวจซ้ำหากยังอยู่ในช่วง Window Period
-- ให้คำแนะนำในการป้องกันการติดเชื้อในอนาคต
-
-การตรวจเอชไอวีเป็นความลับ ผลการตรวจจะไม่ถูกเปิดเผยโดยไม่ได้รับความยินยอมจากผู้รับการตรวจ`,
-
-  'ยา hiv': `ยารักษาเอชไอวี (HIV) ที่ใช้ในปัจจุบันคือยาต้านไวรัส หรือ Antiretroviral Therapy (ART) ซึ่งไม่สามารถกำจัดเชื้อให้หมดไปจากร่างกายได้ แต่สามารถยับยั้งการแบ่งตัวของไวรัสได้อย่างมีประสิทธิภาพ
-
-ยาต้านไวรัสเอชไอวีแบ่งเป็นกลุ่มหลักๆ ดังนี้:
-
-1. กลุ่มยับยั้งเอนไซม์ Reverse Transcriptase
-   - Nucleoside Reverse Transcriptase Inhibitors (NRTIs): เช่น Tenofovir (TDF), Lamivudine (3TC), Abacavir (ABC)
-   - Non-nucleoside Reverse Transcriptase Inhibitors (NNRTIs): เช่น Efavirenz (EFV), Rilpivirine (RPV)
-
-2. กลุ่มยับยั้งเอนไซม์ Protease (PIs)
-   - เช่น Lopinavir/ritonavir (LPV/r), Darunavir (DRV)
-
-3. กลุ่มยับยั้งเอนไซม์ Integrase (INSTIs)
-   - เช่น Dolutegravir (DTG), Raltegravir (RAL), Bictegravir (BIC)
-
-4. กลุ่มยับยั้งการเข้าเซลล์ (Entry Inhibitors)
-   - เช่น Maraviroc (MVC)
-
-การรักษามาตรฐานในปัจจุบัน:
-- ใช้ยาร่วมกัน 2-3 ชนิดจากกลุ่มต่างๆ (ที่เรียกว่าสูตรยา)
-- มียาที่รวมหลายตัวในเม็ดเดียว (Single Tablet Regimen) เพื่อความสะดวกในการรับประทาน
-- สูตรยาที่นิยมใช้เริ่มต้นในประเทศไทยคือ TDF + 3TC + DTG หรือ TDF + FTC + EFV
-
-ผลของการรักษาด้วยยาต้านไวรัส:
-- ลดปริมาณไวรัสในเลือดจนถึงระดับที่ตรวจไม่พบ (undetectable viral load)
-- ช่วยให้ระบบภูมิคุ้มกันฟื้นตัว (เพิ่มจำนวน CD4)
-- ป้องกันการพัฒนาไปสู่โรคเอดส์
-- ลดความเสี่ยงในการแพร่เชื้อไปสู่ผู้อื่น (U=U: Undetectable = Untransmittable)
-- ช่วยให้ผู้ติดเชื้อมีคุณภาพชีวิตและอายุขัยใกล้เคียงกับคนทั่วไป
-
-การใช้ยาต้านไวรัส:
-- ต้องรับประทานยาอย่างสม่ำเสมอตามเวลาที่กำหนด
-- ต้องรับประทานยาต่อเนื่องตลอดชีวิต
-- การขาดยาหรือรับประทานยาไม่สม่ำเสมออาจนำไปสู่การดื้อยาได้
-- อาจมีผลข้างเคียงในช่วงแรก เช่น คลื่นไส้ อาเจียน ผื่น ซึ่งส่วนใหญ่จะดีขึ้นเมื่อร่างกายปรับตัว
-- บางคนอาจมีผลข้างเคียงระยะยาว เช่น ผลต่อไต กระดูก หรือระดับไขมันในเลือด
-
-การเข้าถึงยาในประเทศไทย:
-- ผู้ติดเชื้อสามารถรับยาต้านไวรัสได้ฟรีผ่านระบบหลักประกันสุขภาพแห่งชาติ (บัตรทอง), ประกันสังคม, หรือสวัสดิการข้าราชการ
-- ต้องมีการตรวจติดตามปริมาณไวรัสและระดับ CD4 อย่างสม่ำเสมอ
-
-นอกจากยาต้านไวรัส ยังมียาที่ใช้ในการป้องกัน:
-- ยาป้องกันก่อนการสัมผัสเชื้อ (Pre-Exposure Prophylaxis หรือ PrEP): สำหรับผู้ที่ยังไม่ติดเชื้อแต่มีความเสี่ยงสูง
-- ยาป้องกันหลังการสัมผัสเชื้อ (Post-Exposure Prophylaxis หรือ PEP): ใช้ภายใน 72 ชั่วโมงหลังมีความเสี่ยง
-
-ผู้ที่ได้รับการวินิจฉัยว่าติดเชื้อเอชไอวีควรเริ่มรับการรักษาด้วยยาต้านไวรัสโดยเร็วที่สุด ไม่ว่าระดับ CD4 จะเป็นเท่าใดก็ตาม การเริ่มรักษาเร็วจะช่วยป้องกันความเสียหายต่อระบบภูมิคุ้มกันและลดความเสี่ยงในการแพร่เชื้อ`,
-
-  'ผลเลือด hiv': `หากคุณได้รับผลการตรวจเลือดเอชไอวี (HIV) ที่เป็นบวก ขอแนะนำให้ทำดังนี้:
-
-1. อย่าตื่นตระหนกหรือตกใจ การวินิจฉัยเอชไอวีในปัจจุบันไม่ใช่คำตัดสินโทษประหารชีวิตอีกต่อไป
-
-2. ปรึกษาแพทย์โดยเร็วที่สุด
-   - แพทย์จะให้คำแนะนำและเริ่มการรักษาด้วยยาต้านไวรัส (ART)
-   - การเริ่มรักษาเร็วช่วยป้องกันความเสียหายต่อระบบภูมิคุ้มกัน
-   - การรักษาที่เหมาะสมช่วยให้ผู้ติดเชื้อมีชีวิตยืนยาวเกือบเท่ากับคนที่ไม่มีเชื้อ
-
-3. เข้ารับคำปรึกษาทางจิตใจ
-   - พูดคุยกับผู้เชี่ยวชาญเพื่อรับมือกับความเครียดและความวิตกกังวล
-   - มีบริการให้คำปรึกษาโดยเฉพาะสำหรับผู้ที่ได้รับการวินิจฉัยว่ามีเชื้อเอชไอวี
-
-4. เรียนรู้เพิ่มเติมเกี่ยวกับเอชไอวี
-   - ความรู้ที่ถูกต้องจะช่วยให้คุณจัดการกับโรคได้ดีขึ้น
-   - ปัจจุบันมีแหล่งข้อมูลที่น่าเชื่อถือมากมาย
-
-5. แจ้งคู่นอน
-   - แจ้งคู่นอนปัจจุบันและคู่นอนก่อนหน้านี้เพื่อให้พวกเขาได้รับการตรวจเช่นกัน
-   - อาจขอความช่วยเหลือจากเจ้าหน้าที่สาธารณสุขในการแจ้งคู่นอน
-
-6. หาเครือข่ายสนับสนุน
-   - เข้าร่วมกลุ่มสนับสนุนสำหรับผู้อยู่ร่วมกับเอชไอวี
-   - พูดคุยกับคนที่ไว้ใจได้เพื่อรับการสนับสนุนทางอารมณ์
-
-7. ดูแลสุขภาพโดยรวม
-   - รับประทานอาหารที่มีประโยชน์
-   - ออกกำลังกายสม่ำเสมอ
-   - หลีกเลี่ยงการสูบบุหรี่และดื่มแอลกอฮอล์
-   - รักษาสุขอนามัยที่ดี
-
-8. ใช้สิทธิการรักษา
-   - ในประเทศไทย ผู้ติดเชื้อเอชไอวีสามารถรับการรักษาได้ฟรีผ่านระบบหลักประกันสุขภาพ
-   - มีสิทธิประโยชน์อื่นๆ สำหรับผู้อยู่ร่วมกับเอชไอวี
-
-9. ป้องกันการแพร่เชื้อ
-   - ใช้ถุงยางอนามัยทุกครั้งเมื่อมีเพศสัมพันธ์
-   - รับประทานยาต้านไวรัสอย่างสม่ำเสมอ เมื่อปริมาณไวรัสลดลงจนตรวจไม่พบ จะไม่สามารถแพร่เชื้อให้ผู้อื่นได้ (U=U: Undetectable = Untransmittable)
-
-สายด่วนให้คำปรึกษาเรื่องเอชไอวี:
-- สายด่วนเอดส์: 1663
-- ศูนย์วิจัยโรคเอดส์ สภากาชาดไทย: 02-253-0996
-- มูลนิธิเข้าถึงเอดส์: 02-372-2222
-
-หากคุณยังไม่ได้รับการตรวจยืนยัน แนะนำให้ไปตรวจซ้ำที่โรงพยาบาลหรือคลินิกที่เชื่อถือได้ เนื่องจากบางครั้งอาจมีผลบวกปลอม โดยเฉพาะจากชุดตรวจคัดกรองเบื้องต้น`,
-
-  'ผลเลือดเป็นบวก': `หากคุณได้รับผลการตรวจเลือดเอชไอวี (HIV) ที่เป็นบวก ขอแนะนำให้ทำดังนี้:
-
-1. อย่าตื่นตระหนกหรือตกใจ การวินิจฉัยเอชไอวีในปัจจุบันไม่ใช่คำตัดสินโทษประหารชีวิตอีกต่อไป
-
-2. ปรึกษาแพทย์โดยเร็วที่สุด
-   - แพทย์จะให้คำแนะนำและเริ่มการรักษาด้วยยาต้านไวรัส (ART)
-   - การเริ่มรักษาเร็วช่วยป้องกันความเสียหายต่อระบบภูมิคุ้มกัน
-   - การรักษาที่เหมาะสมช่วยให้ผู้ติดเชื้อมีชีวิตยืนยาวเกือบเท่ากับคนที่ไม่มีเชื้อ
-
-3. เข้ารับคำปรึกษาทางจิตใจ
-   - พูดคุยกับผู้เชี่ยวชาญเพื่อรับมือกับความเครียดและความวิตกกังวล
-   - มีบริการให้คำปรึกษาโดยเฉพาะสำหรับผู้ที่ได้รับการวินิจฉัยว่ามีเชื้อเอชไอวี
-
-4. เรียนรู้เพิ่มเติมเกี่ยวกับเอชไอวี
-   - ความรู้ที่ถูกต้องจะช่วยให้คุณจัดการกับโรคได้ดีขึ้น
-   - ปัจจุบันมีแหล่งข้อมูลที่น่าเชื่อถือมากมาย
-
-5. แจ้งคู่นอน
-   - แจ้งคู่นอนปัจจุบันและคู่นอนก่อนหน้านี้เพื่อให้พวกเขาได้รับการตรวจเช่นกัน
-   - อาจขอความช่วยเหลือจากเจ้าหน้าที่สาธารณสุขในการแจ้งคู่นอน
-
-6. หาเครือข่ายสนับสนุน
-   - เข้าร่วมกลุ่มสนับสนุนสำหรับผู้อยู่ร่วมกับเอชไอวี
-   - พูดคุยกับคนที่ไว้ใจได้เพื่อรับการสนับสนุนทางอารมณ์
-
-7. ดูแลสุขภาพโดยรวม
-   - รับประทานอาหารที่มีประโยชน์
-   - ออกกำลังกายสม่ำเสมอ
-   - หลีกเลี่ยงการสูบบุหรี่และดื่มแอลกอฮอล์
-   - รักษาสุขอนามัยที่ดี
-
-8. ใช้สิทธิการรักษา
-   - ในประเทศไทย ผู้ติดเชื้อเอชไอวีสามารถรับการรักษาได้ฟรีผ่านระบบหลักประกันสุขภาพ
-   - มีสิทธิประโยชน์อื่นๆ สำหรับผู้อยู่ร่วมกับเอชไอวี
-
-9. ป้องกันการแพร่เชื้อ
-   - ใช้ถุงยางอนามัยทุกครั้งเมื่อมีเพศสัมพันธ์
-   - รับประทานยาต้านไวรัสอย่างสม่ำเสมอ เมื่อปริมาณไวรัสลดลงจนตรวจไม่พบ จะไม่สามารถแพร่เชื้อให้ผู้อื่นได้ (U=U: Undetectable = Untransmittable)
-
-สายด่วนให้คำปรึกษาเรื่องเอชไอวี:
-- สายด่วนเอดส์: 1663
-- ศูนย์วิจัยโรคเอดส์ สภากาชาดไทย: 02-253-0996
-- มูลนิธิเข้าถึงเอดส์: 02-372-2222
-
-หากคุณยังไม่ได้รับการตรวจยืนยัน แนะนำให้ไปตรวจซ้ำที่โรงพยาบาลหรือคลินิกที่เชื่อถือได้ เนื่องจากบางครั้งอาจมีผลบวกปลอม โดยเฉพาะจากชุดตรวจคัดกรองเบื้องต้น`,
-
-  // Add a specific response for negative test results
-  'ผลเลือดเป็นลบ': `หากผลการตรวจเลือดของคุณเป็นลบ (Negative) โดยเฉพาะการตรวจเอชไอวี นี่คือสิ่งที่ควรรู้:
-
-1. ผลเลือดเป็นลบ หมายถึง ไม่พบเชื้อที่ตรวจในเลือดของคุณ
-
-2. Window Period (ระยะหน้าต่าง)
-   - แม้ผลจะเป็นลบ แต่หากคุณมีความเสี่ยงในช่วงระยะเวลา "Window Period" อาจต้องตรวจซ้ำ
-   - สำหรับเอชไอวี Window Period ขึ้นอยู่กับวิธีการตรวจ:
-     * การตรวจแอนติบอดี: 3-12 สัปดาห์หลังมีความเสี่ยง
-     * การตรวจแอนติเจน-แอนติบอดี: 2-6 สัปดาห์หลังมีความเสี่ยง
-     * การตรวจ HIV RNA: 7-14 วันหลังมีความเสี่ยง
-
-3. การป้องกันในอนาคต
-   - ผลลบไม่ได้หมายความว่าคุณจะไม่ติดเชื้อในอนาคตหากมีพฤติกรรมเสี่ยง
-   - ใช้ถุงยางอนามัยทุกครั้งเมื่อมีเพศสัมพันธ์
-   - หลีกเลี่ยงการใช้เข็มฉีดยาร่วมกับผู้อื่น
-   - พิจารณาการใช้ PrEP (ยาป้องกันก่อนการสัมผัสเชื้อ) หากคุณมีความเสี่ยงสูง
-
-4. การตรวจสุขภาพสม่ำเสมอ
-   - ควรตรวจเอชไอวีและโรคติดต่อทางเพศสัมพันธ์อื่นๆ เป็นประจำ โดยเฉพาะหากมีคู่นอนหลายคนหรือมีพฤติกรรมเสี่ยง
-   - การตรวจเร็วและสม่ำเสมอช่วยให้การรักษาทันท่วงทีหากติดเชื้อในอนาคต
-
-5. สุขภาพจิต
-   - หากคุณกังวลหรือเครียดเกี่ยวกับผลตรวจหรือความเสี่ยง ควรพูดคุยกับที่ปรึกษาหรือผู้เชี่ยวชาญ
-
-หากคุณมีข้อสงสัยเพิ่มเติมหรือต้องการข้อมูลเฉพาะเกี่ยวกับผลการตรวจของคุณ แนะนำให้ปรึกษาแพทย์หรือผู้ให้บริการด้านสุขภาพที่ทำการตรวจ`,
-
-  // Add typo handling for the situation in the logs
-  'ผลเลือดเป็นยวก': `หากคุณหมายถึง "ผลเลือดเป็นบวก" (Positive) สำหรับเอชไอวี ขอแนะนำให้ทำดังนี้:
-
-1. อย่าตื่นตระหนกหรือตกใจ การวินิจฉัยเอชไอวีในปัจจุบันไม่ใช่คำตัดสินโทษประหารชีวิตอีกต่อไป
-
-2. ปรึกษาแพทย์โดยเร็วที่สุด
-   - แพทย์จะให้คำแนะนำและเริ่มการรักษาด้วยยาต้านไวรัส (ART)
-   - การเริ่มรักษาเร็วช่วยป้องกันความเสียหายต่อระบบภูมิคุ้มกัน
-   - การรักษาที่เหมาะสมช่วยให้ผู้ติดเชื้อมีชีวิตยืนยาวเกือบเท่ากับคนที่ไม่มีเชื้อ
-
-3. เข้ารับคำปรึกษาทางจิตใจ
-   - พูดคุยกับผู้เชี่ยวชาญเพื่อรับมือกับความเครียดและความวิตกกังวล
-   - มีบริการให้คำปรึกษาโดยเฉพาะสำหรับผู้ที่ได้รับการวินิจฉัยว่ามีเชื้อเอชไอวี
-
-4. เรียนรู้เพิ่มเติมเกี่ยวกับเอชไอวี
-   - ความรู้ที่ถูกต้องจะช่วยให้คุณจัดการกับโรคได้ดีขึ้น
-   - ปัจจุบันมีแหล่งข้อมูลที่น่าเชื่อถือมากมาย
-
-5. แจ้งคู่นอน
-   - แจ้งคู่นอนปัจจุบันและคู่นอนก่อนหน้านี้เพื่อให้พวกเขาได้รับการตรวจเช่นกัน
-   - อาจขอความช่วยเหลือจากเจ้าหน้าที่สาธารณสุขในการแจ้งคู่นอน
-
-6. หาเครือข่ายสนับสนุน
-   - เข้าร่วมกลุ่มสนับสนุนสำหรับผู้อยู่ร่วมกับเอชไอวี
-   - พูดคุยกับคนที่ไว้ใจได้เพื่อรับการสนับสนุนทางอารมณ์
-
-7. ดูแลสุขภาพโดยรวม
-   - รับประทานอาหารที่มีประโยชน์
-   - ออกกำลังกายสม่ำเสมอ
-   - หลีกเลี่ยงการสูบบุหรี่และดื่มแอลกอฮอล์
-   - รักษาสุขอนามัยที่ดี
-
-สายด่วนให้คำปรึกษาเรื่องเอชไอวี:
-- สายด่วนเอดส์: 1663
-- ศูนย์วิจัยโรคเอดส์ สภากาชาดไทย: 02-253-0996
-- มูลนิธิเข้าถึงเอดส์: 02-372-2222
-
-หากคุณยังไม่ได้รับการตรวจยืนยัน แนะนำให้ไปตรวจซ้ำที่โรงพยาบาลหรือคลินิกที่เชื่อถือได้ เนื่องจากบางครั้งอาจมีผลบวกปลอม โดยเฉพาะจากชุดตรวจคัดกรองเบื้องต้น`,
-
-  'prep อาการแพ้': `PrEP (Pre-Exposure Prophylaxis หรือยาป้องกันก่อนการสัมผัสเชื้อเอชไอวี) อาจทำให้เกิดอาการแพ้หรือผลข้างเคียงในบางคน ซึ่งส่วนใหญ่มักจะเกิดในช่วงเริ่มต้นของการใช้ยาและค่อยๆ ดีขึ้นเมื่อร่างกายปรับตัว
-
-อาการแพ้ที่พบได้บ่อยจาก PrEP ได้แก่:
-
-1. อาการทั่วไป:
-   - คลื่นไส้ อาเจียน
-   - ปวดท้อง ท้องเสีย
-   - ปวดศีรษะ
-   - อ่อนเพลีย
-   - เวียนศีรษะ
-   - นอนไม่หลับ
-   - เบื่ออาหาร
-
-2. อาการแพ้ทางผิวหนัง:
-   - ผื่นแดง
-   - คัน
-   - ลมพิษ
-   - ผิวหนังลอก (พบได้น้อยมาก)
-
-3. อาการแพ้รุนแรง (พบได้น้อยมาก):
-   - หายใจลำบาก
-   - บวมที่ใบหน้า ริมฝีปาก ลิ้น หรือลำคอ
-   - ชีพจรเร็ว
-   - หน้ามืด
-   - ความดันโลหิตต่ำ
-
-4. ผลข้างเคียงระยะยาว:
-   - อาจมีผลต่อการทำงานของไต (โดยเฉพาะในผู้ที่มีปัญหาไตอยู่แล้ว)
-   - อาจมีผลต่อความหนาแน่นของกระดูก (มักไม่มีอาการและกลับสู่ปกติเมื่อหยุดยา)
-
-สิ่งที่ควรทำเมื่อเกิดอาการแพ้:
-1. อาการเล็กน้อย (คลื่นไส้ ปวดท้อง ปวดศีรษะ): มักหายไปเองภายใน 1-4 สัปดาห์ แต่ควรแจ้งแพทย์ในการตรวจติดตามครั้งถัดไป
-2. อาการปานกลาง (ผื่น คัน รบกวนการใช้ชีวิต): ควรปรึกษาแพทย์เพื่อประเมินและอาจพิจารณาปรับขนาดยาหรือเปลี่ยนยา
-3. อาการรุนแรง (หายใจลำบาก บวมที่ใบหน้า): หยุดยาทันทีและไปพบแพทย์หรือห้องฉุกเฉินโดยเร็วที่สุด
-
-การลดความเสี่ยงของอาการแพ้:
-- รับประทานยาพร้อมอาหาร
-- รับประทานยาในเวลาเดียวกันทุกวัน
-- หลีกเลี่ยงการดื่มแอลกอฮอล์ในปริมาณมาก
-- ดื่มน้ำให้เพียงพอ
-- ตรวจเลือดตามที่แพทย์นัดเพื่อติดตามการทำงานของไต
-
-ข้อสำคัญ: อย่าหยุดยา PrEP เองโดยไม่ปรึกษาแพทย์ (ยกเว้นกรณีเกิดอาการแพ้รุนแรง) เนื่องจากอาจเพิ่มความเสี่ยงในการติดเชื้อเอชไอวีได้ หากมีข้อสงสัยหรือกังวลเกี่ยวกับอาการแพ้ ควรปรึกษาแพทย์หรือเภสัชกรเสมอ`,
-
-  'pep อาการแพ้': `PEP (Post-Exposure Prophylaxis หรือยาป้องกันหลังการสัมผัสเชื้อเอชไอวี) อาจก่อให้เกิดอาการแพ้หรือผลข้างเคียงได้ เนื่องจาก PEP เป็นการใช้ยาต้านไวรัสแบบเต็มขนาดในระยะเวลาสั้น (28 วัน) จึงอาจมีอาการข้างเคียงมากกว่า PrEP
-
-อาการแพ้หรือผลข้างเคียงที่พบบ่อยจาก PEP ได้แก่:
-
-1. อาการทั่วไป:
-   - คลื่นไส้ อาเจียน (พบบ่อย)
-   - ท้องเสีย
-   - ปวดท้อง
-   - ปวดศีรษะ
-   - อ่อนเพลีย เหนื่อยล้า
-   - นอนไม่หลับหรือฝันร้าย
-   - เวียนศีรษะ
-   - เบื่ออาหาร
-
-2. อาการทางผิวหนัง:
-   - ผื่นแดง (ต้องติดตามอย่างใกล้ชิด อาจเป็นสัญญาณของอาการแพ้รุนแรง)
-   - คัน
-   - แห้ง
-
-3. อาการแพ้รุนแรง (พบได้น้อย แต่อันตราย):
-   - ผื่นลุกลามรวดเร็ว
-   - ผิวหนังพอง ลอก
-   - มีไข้สูงร่วมกับผื่น
-   - บวมที่ใบหน้า ลิ้น ลำคอ
-   - หายใจลำบาก
-   - ปวดท้องรุนแรง
-   - ตัวเหลือง ตาเหลือง (ผลต่อตับ)
-
-4. ผลข้างเคียงทางห้องปฏิบัติการ:
-   - เอนไซม์ตับสูงขึ้น
-   - ค่าการทำงานของไตผิดปกติ
-   - ภาวะเลือดจาง (ซีด)
-
-สิ่งที่ควรทำเมื่อเกิดอาการแพ้จาก PEP:
-1. อาการเล็กน้อย (คลื่นไส้ ปวดศีรษะ):
-   - รับประทานยาพร้อมอาหาร
-   - อาจใช้ยาลดอาการคลื่นไส้ตามคำแนะนำของแพทย์
-   - ติดต่อแพทย์หากอาการรบกวนชีวิตประจำวันมาก
-
-2. ผื่นหรืออาการทางผิวหนัง:
-   - ติดต่อแพทย์ทันที เพื่อประเมินความรุนแรง
-   - อาจต้องเปลี่ยนสูตรยาหากมีอาการแพ้
-
-3. อาการรุนแรง:
-   - หยุดยาทันทีและไปโรงพยาบาลโดยเร็วที่สุด
-   - แจ้งแพทย์ว่ากำลังใช้ยา PEP
-
-คำแนะนำสำหรับการใช้ PEP:
-- รับประทานยาตรงเวลาทุกวัน ห้ามพลาด
-- หากลืมรับประทานยา ให้รับประทานทันทีที่นึกได้ แต่หากใกล้เวลามื้อถัดไป ให้ข้ามไปรับประทานมื้อถัดไปตามปกติ (ไม่ต้องรับประทานเพิ่ม)
-- รับประทานยาให้ครบ 28 วัน แม้จะมีอาการข้างเคียงเล็กน้อย
-- ตรวจติดตามตามที่แพทย์นัด เพื่อประเมินผลข้างเคียงและการทำงานของตับ ไต
-
-PEP เป็นการรักษาฉุกเฉินที่ต้องได้รับการดูแลจากแพทย์อย่างใกล้ชิด หากมีข้อสงสัยหรือกังวลเกี่ยวกับอาการแพ้ ควรติดต่อแพทย์หรือสายด่วนเอดส์ (1663) ทันที`
-}; // Added missing closing bracket for hivResponses object
-
-// HIV queries in English
-const hivResponsesEn = {
-  'what is hiv': `HIV (Human Immunodeficiency Virus) is a virus that attacks the body's immune system, specifically the CD4 cells (T cells), which help the immune system fight off infections. If left untreated, HIV can destroy so many CD4 cells that the body can't fight off infections and diseases. When this happens, HIV infection can progress to AIDS (Acquired Immune Deficiency Syndrome), the most severe stage of HIV infection.
-
-HIV is transmitted through:
-- Having unprotected sex with someone who has HIV
-- Sharing needles or syringes with someone who has HIV
-- Receiving blood transfusions containing HIV (very rare in countries that screen blood)
-- From mother to child during pregnancy, birth, or breastfeeding
-
-There is currently no cure for HIV, but with proper medical care, it can be controlled with antiretroviral therapy (ART). People with HIV who take ART as prescribed can live long, healthy lives and prevent transmitting HIV to their sexual partners.
-
-Prevention methods include:
-- Using condoms correctly every time you have sex
-- Not sharing needles
-- Taking pre-exposure prophylaxis (PrEP) if you're at high risk
-- Taking post-exposure prophylaxis (PEP) within 72 hours of potential exposure
-
-If you have concerns about HIV or want to get tested, consult a healthcare provider.`,
-
-  'hiv cure': `Currently, there is no cure for HIV (Human Immunodeficiency Virus), but it can be controlled effectively with antiretroviral therapy (ART).
-
-ART works by reducing the amount of virus (viral load) in the body to undetectable levels, which:
-- Helps the immune system recover and stay strong
-- Reduces the risk of transmitting HIV to others (U=U: Undetectable = Untransmittable)
-- Allows people with HIV to live long, healthy lives comparable to those without HIV
-
-People with HIV need to take ART medication consistently and continuously for life. Stopping treatment can cause the virus to multiply and potentially develop drug resistance.
-
-Research for a cure is ongoing, including approaches like gene therapy and stem cell transplantation, but these are still experimental and not available as standard treatments.
-
-While we don't have a cure yet, with proper treatment, HIV is now considered a manageable chronic condition rather than the fatal disease it once was.`
+const NodeCache = require('node-cache');
+const fs = require('fs').promises;
+const path = require('path');
+const config = require('../../config/config');
+const logger = require('./loggerService');
+
+// Memory cache with configurable TTL (default: 1 hour)
+const memoryCache = new NodeCache({
+  stdTTL: config.cache?.memoryTTL || 3600,
+  checkperiod: 120,
+  useClones: false
+});
+
+// Cache directory for persistent storage
+const CACHE_DIR = path.join(__dirname, '../../.cache');
+
+// Ensure cache directory exists
+const ensureCacheDir = async () => {
+  try {
+    await fs.mkdir(CACHE_DIR, { recursive: true });
+  } catch (error) {
+    logger.error('Failed to create cache directory:', error);
+  }
 };
 
-// Functions to get responses based on query
-const getHIVResponse = (query, language = 'th') => {
-  // Convert query to lowercase for case-insensitive matching
-  const lowerQuery = query.toLowerCase().trim();
-  
-  // Check Thai responses first
-  if (hivResponses[lowerQuery]) {
-    return hivResponses[lowerQuery];
+// Initialize cache on startup
+(async () => {
+  if (config.features.enableCache) {
+    await ensureCacheDir();
+    logger.info('Cache service initialized', {
+      memoryTTL: config.cache?.memoryTTL || 3600,
+      persistentCache: config.cache?.enablePersistence || false
+    });
   }
-  
-  // Check English responses if language is English
-  if (language === 'en' && hivResponsesEn[lowerQuery]) {
-    return hivResponsesEn[lowerQuery];
-  }
-  
-  // Try partial matching for Thai
-  for (const key in hivResponses) {
-    if (lowerQuery.includes(key) || key.includes(lowerQuery)) {
-      return hivResponses[key];
-    }
-  }
-  
-  // Try partial matching for English if language is English
-  if (language === 'en') {
-    for (const key in hivResponsesEn) {
-      if (lowerQuery.includes(key) || key.includes(lowerQuery)) {
-        return hivResponsesEn[key];
-      }
-    }
-  }
-  
-  // Default fallback responses
-  if (lowerQuery.includes('hiv') || lowerQuery.includes('เอชไอวี')) {
-    return language === 'en' 
-      ? "HIV (Human Immunodeficiency Virus) is a virus that attacks the body's immune system. With proper treatment using antiretroviral therapy, people with HIV can live long, healthy lives. There is currently no cure, but the virus can be controlled effectively with medication."
-      : "เอชไอวี (HIV) คือไวรัสที่โจมตีระบบภูมิคุ้มกันของร่างกาย ด้วยการรักษาด้วยยาต้านไวรัสที่เหมาะสม ผู้ที่มีเชื้อเอชไอวีสามารถมีชีวิตที่ยืนยาวและมีสุขภาพดีได้ ปัจจุบันยังไม่มีวิธีรักษาให้หายขาด แต่สามารถควบคุมไวรัสได้อย่างมีประสิทธิภาพด้วยยา";
-  }
-  
-  return null; // Return null if no match found
+})();
+
+/**
+ * Generate cache key with namespacing
+ * @param {string} key - The base key
+ * @param {string} namespace - Optional namespace for the key
+ * @returns {string} - The namespaced cache key
+ */
+const generateKey = (key, namespace = 'default') => {
+  return `${namespace}:${key}`;
 };
 
 /**
- * Get a cached response for common health queries
- * 
- * @param {string} query - The user's query
- * @param {string} language - The language code ('en' or 'th')
- * @returns {string|null} - A cached response or null if not found
+ * Get value from cache
+ * @param {string} key - The cache key
+ * @param {string} namespace - Optional namespace for the key
+ * @returns {any} - The cached value or undefined
  */
-const getCachedResponse = (query, language = 'th') => {
-  // Convert query to lowercase for better matching
-  const lowerQuery = query.toLowerCase().trim();
+const get = (key, namespace = 'default') => {
+  if (!config.features.enableCache) {
+    return undefined;
+  }
+
+  const cacheKey = generateKey(key, namespace);
   
-  // Check for PrEP/PEP related queries
-  if (/prep|pep/.test(lowerQuery)) {
-    if (/อาการ|แพ้|ข้างเคียง|side.?effect|allerg/.test(lowerQuery)) {
-      if (/prep/.test(lowerQuery)) {
-        return hivResponses['prep อาการแพ้'];
+  // Try memory cache first
+  const memoryValue = memoryCache.get(cacheKey);
+  if (memoryValue !== undefined) {
+    logger.debug('Cache hit (memory)', { key: cacheKey });
+    return memoryValue;
+  }
+  
+  // If persistent cache is enabled, try to get from disk
+  if (config.cache?.enablePersistence) {
+    try {
+      const cacheFile = path.join(CACHE_DIR, `${cacheKey.replace(/:/g, '_')}.json`);
+      // Check if file exists synchronously to avoid unnecessary async operations
+      if (fs.existsSync(cacheFile)) {
+        const data = fs.readFileSync(cacheFile, 'utf8');
+        const { value, expiry } = JSON.parse(data);
+        
+        // Check if cache has expired
+        if (expiry > Date.now()) {
+          // Set in memory cache for faster access next time
+          memoryCache.set(cacheKey, value);
+          logger.debug('Cache hit (persistent)', { key: cacheKey });
+          return value;
+        }
+        
+        // Remove expired cache file
+        fs.unlink(cacheFile).catch(err => {
+          logger.error('Failed to delete expired cache file:', err);
+        });
       }
-      if (/pep/.test(lowerQuery)) {
-        return hivResponses['pep อาการแพ้'];
+    } catch (error) {
+      logger.error('Error reading from persistent cache:', error);
+    }
+  }
+  
+  logger.debug('Cache miss', { key: cacheKey });
+  return undefined;
+};
+
+/**
+ * Set value in cache
+ * @param {string} key - The cache key
+ * @param {any} value - The value to cache
+ * @param {number} ttl - Time to live in seconds (optional)
+ * @param {string} namespace - Optional namespace for the key
+ * @returns {boolean} - Success status
+ */
+const set = async (key, value, ttl = undefined, namespace = 'default') => {
+  if (!config.features.enableCache) {
+    return false;
+  }
+
+  const cacheKey = generateKey(key, namespace);
+  
+  // Set in memory cache
+  const ttlValue = ttl || config.cache?.memoryTTL || 3600;
+  memoryCache.set(cacheKey, value, ttlValue);
+  
+  // If persistent cache is enabled, save to disk
+  if (config.cache?.enablePersistence) {
+    try {
+      await ensureCacheDir();
+      
+      const cacheFile = path.join(CACHE_DIR, `${cacheKey.replace(/:/g, '_')}.json`);
+      const cacheData = {
+        value,
+        expiry: Date.now() + (ttlValue * 1000)
+      };
+      
+      await fs.writeFile(cacheFile, JSON.stringify(cacheData), 'utf8');
+      logger.debug('Saved to persistent cache', { key: cacheKey });
+    } catch (error) {
+      logger.error('Error writing to persistent cache:', error);
+      return false;
+    }
+  }
+  
+  return true;
+};
+
+/**
+ * Delete value from cache
+ * @param {string} key - The cache key
+ * @param {string} namespace - Optional namespace for the key
+ * @returns {boolean} - Success status
+ */
+const del = async (key, namespace = 'default') => {
+  if (!config.features.enableCache) {
+    return false;
+  }
+
+  const cacheKey = generateKey(key, namespace);
+  
+  // Delete from memory cache
+  memoryCache.del(cacheKey);
+  
+  // If persistent cache is enabled, delete from disk
+  if (config.cache?.enablePersistence) {
+    try {
+      const cacheFile = path.join(CACHE_DIR, `${cacheKey.replace(/:/g, '_')}.json`);
+      await fs.unlink(cacheFile);
+    } catch (error) {
+      // Ignore file not found errors
+      if (error.code !== 'ENOENT') {
+        logger.error('Error deleting from persistent cache:', error);
+        return false;
       }
     }
   }
   
-  // Check for HIV test results specifically (high priority matching)
-  if (lowerQuery.includes('ผลเลือด') || 
-      lowerQuery.includes('ผลตรวจ') || 
-      lowerQuery.includes('ผลบวก') || 
-      lowerQuery.includes('ผล+') || 
-      lowerQuery.includes('เป็นบวก') || 
-      lowerQuery.includes('เป็น+') ||
-      lowerQuery.includes('ผลเลือดเป็นบวก') ||
-      lowerQuery.includes('positive') ||
-      lowerQuery.includes('test result')) {
-    
-    if (lowerQuery.includes('hiv') || 
-        lowerQuery.includes('เอชไอวี') || 
-        lowerQuery.includes('เอดส์')) {
-      return hivResponses['ผลเลือด hiv'];
-    }
-    
-    // If no specific mention of HIV, but context suggests HIV test
-    if (lowerQuery.includes('บวก') || lowerQuery.includes('positive') || lowerQuery.includes('+') || lowerQuery.includes('ยวก')) {
-      return hivResponses['ผลเลือดเป็นบวก'];
+  return true;
+};
+
+/**
+ * Clear all cache (both memory and persistent)
+ * @returns {boolean} - Success status
+ */
+const clear = async () => {
+  if (!config.features.enableCache) {
+    return false;
+  }
+
+  // Clear memory cache
+  memoryCache.flushAll();
+  
+  // Clear persistent cache if enabled
+  if (config.cache?.enablePersistence) {
+    try {
+      const files = await fs.readdir(CACHE_DIR);
+      
+      // Delete all cache files
+      await Promise.all(
+        files.map(file => {
+          if (file.endsWith('.json')) {
+            return fs.unlink(path.join(CACHE_DIR, file));
+          }
+        })
+      );
+      
+      logger.info('Cache cleared successfully');
+    } catch (error) {
+      logger.error('Error clearing persistent cache:', error);
+      return false;
     }
   }
   
-  // Check for specific health topics
-  if (lowerQuery.includes('hiv') || 
-      lowerQuery.includes('เอชไอวี') || 
-      lowerQuery.includes('เอดส์')) {
-    
-    // Check for specific aspects of HIV
-    if (lowerQuery.includes('ติดต่อ') || lowerQuery.includes('ติดเชื้อ') || lowerQuery.includes('แพร่') || 
-        lowerQuery.includes('transmit') || lowerQuery.includes('contract')) {
-      return hivResponses['การติดเชื้อ hiv'] || getHIVResponse(query, language);
-    }
-    
-    if (lowerQuery.includes('วัคซีน') || lowerQuery.includes('vaccine')) {
-      return hivResponses['วัคซีน hiv'] || getHIVResponse(query, language);
-    }
-    
-    if (lowerQuery.includes('อาการ') || lowerQuery.includes('symptom')) {
-      return hivResponses['อาการ hiv'] || getHIVResponse(query, language);
-    }
-    
-    if (lowerQuery.includes('ตรวจ') || lowerQuery.includes('test')) {
-      return hivResponses['การตรวจ hiv'] || getHIVResponse(query, language);
-    }
-    
-    if (lowerQuery.includes('ยา') || lowerQuery.includes('รักษา') || lowerQuery.includes('medicine') || 
-        lowerQuery.includes('treatment') || lowerQuery.includes('drug')) {
-      return hivResponses['ยา hiv'] || hivResponses['เอชไอวี รักษาหายไหม'] || getHIVResponse(query, language);
-    }
-    
-    // General HIV response if no specific aspect is mentioned
-    return getHIVResponse(query, language);
+  return true;
+};
+
+/**
+ * Get cache statistics
+ * @returns {Object} - Cache statistics
+ */
+const getStats = () => {
+  if (!config.features.enableCache) {
+    return { enabled: false };
   }
+
+  const stats = memoryCache.getStats();
   
-  // Add more health topics as needed
-  
-  return null; // No cached response available
+  return {
+    enabled: true,
+    persistent: config.cache?.enablePersistence || false,
+    memory: {
+      hits: stats.hits,
+      misses: stats.misses,
+      keys: stats.keys,
+      ksize: stats.ksize,
+      vsize: stats.vsize
+    }
+  };
 };
 
 module.exports = {
-  getCachedResponse,
-  hivResponses,
-  hivResponsesEn
+  get,
+  set,
+  del,
+  clear,
+  getStats
 };
