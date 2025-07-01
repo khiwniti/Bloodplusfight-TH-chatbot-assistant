@@ -1,4 +1,10 @@
-# 🔧 Troubleshooting 401 Unauthorized Error
+# 🔧 Troubleshooting Build and 401 Unauthorized Errors
+
+## ✅ Build Issue Fixed
+
+The build error (`cp: cannot stat '.env': No such file or directory`) has been resolved by updating the build script in `package.json`. The build should now complete successfully.
+
+## 🔧 Fixing the 401 Unauthorized Error
 
 You're getting a 401 Unauthorized error from your LINE webhook. Here's how to diagnose and fix it:
 
