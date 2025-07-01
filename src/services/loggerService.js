@@ -47,22 +47,22 @@ const shouldLog = (level) => {
 
 // Logger functions for different levels
 const debug = (message, context = {}) => {
-  if (!shouldLog('debug')) return;
+  if (!shouldLog('debug')) {return;}
   console.log(formatLogMessage('debug', message, context));
 };
 
 const info = (message, context = {}) => {
-  if (!shouldLog('info')) return;
+  if (!shouldLog('info')) {return;}
   console.log(formatLogMessage('info', message, context));
 };
 
 const warn = (message, context = {}) => {
-  if (!shouldLog('warn')) return;
+  if (!shouldLog('warn')) {return;}
   console.warn(formatLogMessage('warn', message, context));
 };
 
 const error = (message, error = null, context = {}) => {
-  if (!shouldLog('error')) return;
+  if (!shouldLog('error')) {return;}
   
   // Add error details to context if provided
   const errorContext = error ? {
@@ -78,7 +78,7 @@ const error = (message, error = null, context = {}) => {
 // Request logger for HTTP requests
 const logRequest = (req, res, next) => {
   if (!shouldLog('info')) {
-    if (next) next();
+    if (next) {next();}
     return;
   }
   
@@ -99,7 +99,7 @@ const logRequest = (req, res, next) => {
     
     // Determine appropriate log level based on status code
     const level = res.statusCode >= 500 ? 'error' : 
-                 res.statusCode >= 400 ? 'warn' : 'info';
+      res.statusCode >= 400 ? 'warn' : 'info';
     
     const logContext = {
       requestId,
@@ -119,12 +119,12 @@ const logRequest = (req, res, next) => {
     }
   });
   
-  if (next) next();
+  if (next) {next();}
 };
 
 // LINE bot event logger
 const logLineEvent = (event, result) => {
-  if (!shouldLog('info')) return;
+  if (!shouldLog('info')) {return;}
   
   // Extract useful information but sanitize sensitive data
   const sanitizedEvent = {

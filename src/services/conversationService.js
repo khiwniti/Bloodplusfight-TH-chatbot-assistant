@@ -100,7 +100,7 @@ const addMessage = async (conversation, role, content, metadata = {}) => {
 const getConversationHistory = async (lineUserId, limit = 10) => {
   try {
     const conversation = inMemoryConversations.get(lineUserId);
-    if (!conversation) return [];
+    if (!conversation) {return [];}
     return conversation.messages
       .slice(-limit)
       .map(msg => ({

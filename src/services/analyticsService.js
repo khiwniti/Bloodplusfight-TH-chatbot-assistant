@@ -64,7 +64,7 @@ const logFailedApiCall = (userId, query, error) => {
     stack: isDevelopment ? error.stack : null
   };
   
-  console.error(`API Failure:`, JSON.stringify(logEntry));
+  console.error('API Failure:', JSON.stringify(logEntry));
   
   // Write to log file
   if (isDevelopment || config.logging.saveToFile) {

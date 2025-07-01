@@ -6,20 +6,20 @@ const PORT = process.env.PORT || 3000;
 const HOST = process.env.NODE_ENV === 'production' ? '0.0.0.0' : 'localhost';
 
 const server = app.listen(PORT, HOST, async () => {
-  console.log(`Server Configuration:`, {
+  console.log('Server Configuration:', {
     port: PORT,
     researchEnabled: config.research.enabled
   });
   
-  console.log(`LINE Bot Configuration:`, {
+  console.log('LINE Bot Configuration:', {
     hasChannelSecret: !!config.line.channelSecret,
     hasChannelAccessToken: !!config.line.channelAccessToken
   });
   
   const isProduction = process.env.NODE_ENV === 'production';
   if (!isProduction) {
-    console.log(`Running in development mode with mock LINE client`);
-    console.log(`Skipping LINE client configuration test in development mode`);
+    console.log('Running in development mode with mock LINE client');
+    console.log('Skipping LINE client configuration test in development mode');
   }
   
   console.log(`Server running on ${HOST}:${PORT}`);
@@ -28,7 +28,7 @@ const server = app.listen(PORT, HOST, async () => {
   if (!isProduction) {
     console.log(`Local URL: http://${HOST}:${PORT}`);
   } else {
-    console.log(`Deployed on Render`);
+    console.log('Deployed on Render');
   }
 });
 

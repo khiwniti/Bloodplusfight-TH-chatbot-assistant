@@ -83,7 +83,7 @@ const performWebSearch = async (query, lang = 'en') => {
  * @returns {Array} - Prioritized search results
  */
 const prioritizeTrustedSources = (results) => {
-  if (!results || !Array.isArray(results) || results.length === 0) return results;
+  if (!results || !Array.isArray(results) || results.length === 0) {return results;}
   
   // Sort results based on trusted sources
   return results.sort((a, b) => {

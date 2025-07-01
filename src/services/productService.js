@@ -102,7 +102,7 @@ const getAllProducts = async (language = 'en') => {
  */
 const getProductById = async (productId, language = 'en') => {
   const product = db.products.find(p => p.productId === productId);
-  if (!product) return null;
+  if (!product) {return null;}
   if (language === 'th') {
     return {
       id: product.productId,
@@ -187,7 +187,7 @@ const addProduct = async (productData) => {
  */
 const updateProduct = async (productId, productData) => {
   const productIndex = db.products.findIndex(p => p.productId === productId);
-  if (productIndex === -1) return null;
+  if (productIndex === -1) {return null;}
   db.products[productIndex] = {
     ...db.products[productIndex],
     ...productData
@@ -202,7 +202,7 @@ const updateProduct = async (productId, productData) => {
  */
 const deleteProduct = async (productId) => {
   const productIndex = db.products.findIndex(p => p.productId === productId);
-  if (productIndex === -1) return false;
+  if (productIndex === -1) {return false;}
   db.products.splice(productIndex, 1);
   return true;
 };

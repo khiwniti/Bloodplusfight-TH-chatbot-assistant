@@ -16,7 +16,7 @@ const cacheMetadata = new Map(); // Store TTL and other metadata
  * @returns {any|null} Cached value or null if not found/expired
  */
 const get = (key) => {
-  if (!CACHE_ENABLED) return null;
+  if (!CACHE_ENABLED) {return null;}
   
   try {
     // Check if key exists and not expired
@@ -56,7 +56,7 @@ const get = (key) => {
  * @returns {boolean} Success status
  */
 const set = (key, value, options = {}) => {
-  if (!CACHE_ENABLED) return false;
+  if (!CACHE_ENABLED) {return false;}
   
   try {
     // Ensure we don't exceed max cache size
@@ -91,7 +91,7 @@ const set = (key, value, options = {}) => {
  * @returns {boolean} Success status
  */
 const del = (key) => {
-  if (!CACHE_ENABLED) return false;
+  if (!CACHE_ENABLED) {return false;}
   
   try {
     const deleted = cacheStore.delete(key);
@@ -111,7 +111,7 @@ const del = (key) => {
  * @returns {boolean} Success status
  */
 const clear = () => {
-  if (!CACHE_ENABLED) return false;
+  if (!CACHE_ENABLED) {return false;}
   
   try {
     cacheStore.clear();
@@ -168,10 +168,10 @@ const getStats = () => {
  */
 const cacheMiddleware = (ttl = DEFAULT_TTL) => {
   return (req, res, next) => {
-    if (!CACHE_ENABLED) return next();
+    if (!CACHE_ENABLED) {return next();}
     
     // Only cache GET requests
-    if (req.method !== 'GET') return next();
+    if (req.method !== 'GET') {return next();}
     
     // Create a cache key from the URL and query parameters
     const cacheKey = `api:${req.originalUrl || req.url}`;
@@ -206,7 +206,7 @@ const cacheMiddleware = (ttl = DEFAULT_TTL) => {
  */
 const cachedFunction = (fn, keyFn, options = {}) => {
   return async (...args) => {
-    if (!CACHE_ENABLED) return fn(...args);
+    if (!CACHE_ENABLED) {return fn(...args);}
     
     // Generate cache key
     const cacheKey = keyFn ? keyFn(...args) : `fn:${fn.name}:${JSON.stringify(args)}`;

@@ -118,7 +118,7 @@ const trackRequest = (path, method = 'GET') => {
 
 // Track API response
 const trackResponse = (tracker, status, error = null) => {
-  if (!tracker || !tracker.start) return;
+  if (!tracker || !tracker.start) {return;}
   
   const duration = Date.now() - tracker.start;
   
@@ -158,7 +158,7 @@ const trackAICall = (provider) => {
 
 // Track AI API response
 const trackAIResponse = (tracker, success, error = null) => {
-  if (!tracker || !tracker.start) return;
+  if (!tracker || !tracker.start) {return;}
   
   const duration = Date.now() - tracker.start;
   
@@ -307,8 +307,8 @@ const getMetrics = () => {
           acc[item.provider] = { count: 0, success: 0, errors: 0, avg_duration: 0, total_duration: 0 };
         }
         acc[item.provider].count++;
-        if (item.success) acc[item.provider].success++;
-        else acc[item.provider].errors++;
+        if (item.success) {acc[item.provider].success++;}
+        else {acc[item.provider].errors++;}
         acc[item.provider].total_duration += item.duration;
         acc[item.provider].avg_duration = Math.round(acc[item.provider].total_duration / acc[item.provider].count);
         return acc;

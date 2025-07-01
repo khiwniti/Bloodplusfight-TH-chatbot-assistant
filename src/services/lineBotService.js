@@ -385,7 +385,7 @@ const handleEvent = async (event) => {
     // Continue with normal processing - send acknowledgment if fast response is enabled
     // and we haven't already sent a research notification
     if (config.features.enableFastResponse && !researchNotificationSent) {
-      const quickAcknowledgment = "Received your message. Processing...";
+      const quickAcknowledgment = 'Received your message. Processing...';
       try {
         await safeReplyMessage(replyToken, { type: 'text', text: quickAcknowledgment });
         // Now we'll need to use pushMessage for the actual response
@@ -521,7 +521,7 @@ const handleEvent = async (event) => {
         aiService.generateResponse(userMessage, customerContext),
         new Promise((_, reject) => 
           setTimeout(() => reject(new Error('AI response timeout')), 
-          config.limits.aiResponseTimeout || 15000)
+            config.limits.aiResponseTimeout || 15000)
         )
       ]);
       logger.info('DeepSeek API response received successfully');
@@ -726,57 +726,57 @@ const handleCommand = async (text, userId, replyToken, language, conversation) =
   let responseText;
   
   switch (command.toLowerCase()) {
-    case 'help':
-      responseText = messages[language].commandHelp;
-      break;
+  case 'help':
+    responseText = messages[language].commandHelp;
+    break;
       
-    case 'reset':
-      // Close current conversation and create new one
-      await conversationService.closeConversation(conversation);
-      const newConversation = await conversationService.getActiveConversation(userId);
-      await conversationService.addMessage(newConversation, 'system', 'Conversation reset');
-      responseText = messages[language].resetConfirmation;
-      break;
+  case 'reset':
+    // Close current conversation and create new one
+    await conversationService.closeConversation(conversation);
+    const newConversation = await conversationService.getActiveConversation(userId);
+    await conversationService.addMessage(newConversation, 'system', 'Conversation reset');
+    responseText = messages[language].resetConfirmation;
+    break;
       
-    case 'language':
-      if (args.length > 0 && (args[0] === 'en' || args[0] === 'th')) {
-        const newLang = args[0];
-        await conversationService.updateLanguage(conversation, newLang);
-        responseText = newLang === 'en' ? messages.en.languageChanged : messages.th.languageChanged;
-      } else {
-        responseText = language === 'th' 
-          ? 'กรุณาระบุภาษา (en หรือ th)' 
-          : 'Please specify a language (en or th)';
-      }
-      break;
+  case 'language':
+    if (args.length > 0 && (args[0] === 'en' || args[0] === 'th')) {
+      const newLang = args[0];
+      await conversationService.updateLanguage(conversation, newLang);
+      responseText = newLang === 'en' ? messages.en.languageChanged : messages.th.languageChanged;
+    } else {
+      responseText = language === 'th' 
+        ? 'กรุณาระบุภาษา (en หรือ th)' 
+        : 'Please specify a language (en or th)';
+    }
+    break;
       
-    case 'feedback':
-      const feedback = args.join(' ').trim();
-      if (feedback) {
-        logger.info(`Feedback received from user`, { userId, feedback });
-        // Store feedback in conversation metadata
-        if (conversation) {
-          conversation.metadata = conversation.metadata || {};
-          conversation.metadata.feedback = conversation.metadata.feedback || [];
-          conversation.metadata.feedback.push({
-            text: feedback,
-            timestamp: new Date()
-          });
+  case 'feedback':
+    const feedback = args.join(' ').trim();
+    if (feedback) {
+      logger.info('Feedback received from user', { userId, feedback });
+      // Store feedback in conversation metadata
+      if (conversation) {
+        conversation.metadata = conversation.metadata || {};
+        conversation.metadata.feedback = conversation.metadata.feedback || [];
+        conversation.metadata.feedback.push({
+          text: feedback,
+          timestamp: new Date()
+        });
           
-          // Add to conversation history
-          await conversationService.addMessage(conversation, 'system', `Feedback: ${feedback}`);
-        }
-        
-        responseText = messages[language].feedbackThanks;
-      } else {
-        responseText = language === 'th' 
-          ? 'กรุณาระบุข้อเสนอแนะของคุณ เช่น /feedback ข้อความของคุณ' 
-          : 'Please provide your feedback, e.g., /feedback your message';
+        // Add to conversation history
+        await conversationService.addMessage(conversation, 'system', `Feedback: ${feedback}`);
       }
-      break;
+        
+      responseText = messages[language].feedbackThanks;
+    } else {
+      responseText = language === 'th' 
+        ? 'กรุณาระบุข้อเสนอแนะของคุณ เช่น /feedback ข้อความของคุณ' 
+        : 'Please provide your feedback, e.g., /feedback your message';
+    }
+    break;
       
-    default:
-      responseText = messages[language].unknownCommand;
+  default:
+    responseText = messages[language].unknownCommand;
   }
   
   // Send response

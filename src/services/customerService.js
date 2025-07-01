@@ -106,7 +106,7 @@ const addInMemoryPurchase = (lineUserId, purchase) => {
 const getPurchaseHistory = async (lineUserId) => {
   try {
     const customer = inMemoryCustomers.get(lineUserId);
-    if (!customer) return [];
+    if (!customer) {return [];}
     return customer.purchaseHistory || [];
   } catch (error) {
     return [];

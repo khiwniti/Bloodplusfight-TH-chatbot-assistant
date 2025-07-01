@@ -55,8 +55,8 @@ Health context: ${JSON.stringify(context.healthcareContext)}`
 บริบทด้านสุขภาพ: ${JSON.stringify(context.healthcareContext)}`;
   } else {
     systemContent = context.language === 'en'
-      ? `You are a helpful assistant. Provide accurate and relevant information in response to user queries. Be concise but comprehensive in your answers.`
-      : `คุณเป็นผู้ช่วยที่มีประโยชน์ ให้ข้อมูลที่ถูกต้องและเกี่ยวข้องในการตอบคำถามของผู้ใช้ ตอบแบบกระชับแต่ครอบคลุม`;
+      ? 'You are a helpful assistant. Provide accurate and relevant information in response to user queries. Be concise but comprehensive in your answers.'
+      : 'คุณเป็นผู้ช่วยที่มีประโยชน์ ให้ข้อมูลที่ถูกต้องและเกี่ยวข้องในการตอบคำถามของผู้ใช้ ตอบแบบกระชับแต่ครอบคลุม';
   }
   
   messages.push({ role: 'system', content: systemContent });

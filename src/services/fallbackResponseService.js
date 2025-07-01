@@ -5,85 +5,85 @@
 
 // English fallback responses for general queries
 const generalFallbackResponsesEN = [
-  "I'm sorry, I couldn't process your request at the moment. Could you try again later?",
-  "I apologize, but I'm having trouble understanding your question. Could you rephrase it?",
-  "I'm experiencing some technical difficulties. Please try again in a few moments.",
-  "I couldn't generate a proper response right now. Please try asking in a different way.",
-  "Sorry for the inconvenience, but I'm unable to provide an answer at this time."
+  'I\'m sorry, I couldn\'t process your request at the moment. Could you try again later?',
+  'I apologize, but I\'m having trouble understanding your question. Could you rephrase it?',
+  'I\'m experiencing some technical difficulties. Please try again in a few moments.',
+  'I couldn\'t generate a proper response right now. Please try asking in a different way.',
+  'Sorry for the inconvenience, but I\'m unable to provide an answer at this time.'
 ];
 
 // Thai fallback responses for general queries
 const generalFallbackResponsesTH = [
-  "ขออภัย ฉันไม่สามารถประมวลผลคำขอของคุณได้ในขณะนี้ คุณลองอีกครั้งในภายหลังได้ไหมคะ/ครับ?",
-  "ขออภัย แต่ฉันกำลังมีปัญหาในการเข้าใจคำถามของคุณ คุณช่วยถามใหม่ได้ไหมคะ/ครับ?",
-  "ฉันกำลังประสบปัญหาทางเทคนิคบางอย่าง โปรดลองอีกครั้งในอีกสักครู่นะคะ/ครับ",
-  "ฉันไม่สามารถสร้างคำตอบที่เหมาะสมได้ในตอนนี้ โปรดลองถามด้วยวิธีอื่นคะ/ครับ",
-  "ขออภัยในความไม่สะดวก แต่ฉันไม่สามารถให้คำตอบได้ในขณะนี้คะ/ครับ"
+  'ขออภัย ฉันไม่สามารถประมวลผลคำขอของคุณได้ในขณะนี้ คุณลองอีกครั้งในภายหลังได้ไหมคะ/ครับ?',
+  'ขออภัย แต่ฉันกำลังมีปัญหาในการเข้าใจคำถามของคุณ คุณช่วยถามใหม่ได้ไหมคะ/ครับ?',
+  'ฉันกำลังประสบปัญหาทางเทคนิคบางอย่าง โปรดลองอีกครั้งในอีกสักครู่นะคะ/ครับ',
+  'ฉันไม่สามารถสร้างคำตอบที่เหมาะสมได้ในตอนนี้ โปรดลองถามด้วยวิธีอื่นคะ/ครับ',
+  'ขออภัยในความไม่สะดวก แต่ฉันไม่สามารถให้คำตอบได้ในขณะนี้คะ/ครับ'
 ];
 
 // English fallback responses for healthcare queries
 const healthcareFallbackResponsesEN = [
-  "I apologize, but I'm unable to provide healthcare information at the moment. For accurate medical advice, please consult a healthcare professional.",
-  "I'm sorry, but I can't process your healthcare question right now. For health concerns, it's always best to speak with a qualified medical provider.",
-  "For your health-related question, I recommend consulting with a healthcare professional who can provide personalized advice based on your specific situation.",
-  "I'm experiencing difficulties accessing healthcare information. For urgent health concerns, please contact a medical professional directly.",
-  "I apologize for the inconvenience, but I cannot provide medical information at this time. Please consult with a healthcare provider for accurate guidance."
+  'I apologize, but I\'m unable to provide healthcare information at the moment. For accurate medical advice, please consult a healthcare professional.',
+  'I\'m sorry, but I can\'t process your healthcare question right now. For health concerns, it\'s always best to speak with a qualified medical provider.',
+  'For your health-related question, I recommend consulting with a healthcare professional who can provide personalized advice based on your specific situation.',
+  'I\'m experiencing difficulties accessing healthcare information. For urgent health concerns, please contact a medical professional directly.',
+  'I apologize for the inconvenience, but I cannot provide medical information at this time. Please consult with a healthcare provider for accurate guidance.'
 ];
 
 // Thai fallback responses for healthcare queries
 const healthcareFallbackResponsesTH = [
-  "ขออภัย ฉันไม่สามารถให้ข้อมูลด้านสุขภาพได้ในขณะนี้ สำหรับคำแนะนำทางการแพทย์ที่ถูกต้อง โปรดปรึกษาบุคลากรทางการแพทย์คะ/ครับ",
-  "ขออภัย แต่ฉันไม่สามารถประมวลผลคำถามด้านสุขภาพของคุณได้ในขณะนี้ สำหรับปัญหาสุขภาพ ควรปรึกษากับผู้ให้บริการทางการแพทย์ที่มีคุณสมบัติเหมาะสมคะ/ครับ",
-  "สำหรับคำถามเกี่ยวกับสุขภาพของคุณ ฉันขอแนะนำให้ปรึกษากับบุคลากรทางการแพทย์ที่สามารถให้คำแนะนำส่วนบุคคลตามสถานการณ์เฉพาะของคุณคะ/ครับ",
-  "ฉันกำลังประสบปัญหาในการเข้าถึงข้อมูลด้านสุขภาพ สำหรับปัญหาสุขภาพเร่งด่วน โปรดติดต่อบุคลากรทางการแพทย์โดยตรงคะ/ครับ",
-  "ขออภัยในความไม่สะดวก แต่ฉันไม่สามารถให้ข้อมูลทางการแพทย์ได้ในขณะนี้ โปรดปรึกษากับผู้ให้บริการด้านสุขภาพเพื่อขอคำแนะนำที่ถูกต้องคะ/ครับ"
+  'ขออภัย ฉันไม่สามารถให้ข้อมูลด้านสุขภาพได้ในขณะนี้ สำหรับคำแนะนำทางการแพทย์ที่ถูกต้อง โปรดปรึกษาบุคลากรทางการแพทย์คะ/ครับ',
+  'ขออภัย แต่ฉันไม่สามารถประมวลผลคำถามด้านสุขภาพของคุณได้ในขณะนี้ สำหรับปัญหาสุขภาพ ควรปรึกษากับผู้ให้บริการทางการแพทย์ที่มีคุณสมบัติเหมาะสมคะ/ครับ',
+  'สำหรับคำถามเกี่ยวกับสุขภาพของคุณ ฉันขอแนะนำให้ปรึกษากับบุคลากรทางการแพทย์ที่สามารถให้คำแนะนำส่วนบุคคลตามสถานการณ์เฉพาะของคุณคะ/ครับ',
+  'ฉันกำลังประสบปัญหาในการเข้าถึงข้อมูลด้านสุขภาพ สำหรับปัญหาสุขภาพเร่งด่วน โปรดติดต่อบุคลากรทางการแพทย์โดยตรงคะ/ครับ',
+  'ขออภัยในความไม่สะดวก แต่ฉันไม่สามารถให้ข้อมูลทางการแพทย์ได้ในขณะนี้ โปรดปรึกษากับผู้ให้บริการด้านสุขภาพเพื่อขอคำแนะนำที่ถูกต้องคะ/ครับ'
 ];
 
 // Topic-specific fallback responses (English)
 const topicFallbackResponsesEN = {
   hiv: [
-    "For HIV-related questions, I recommend consulting with a healthcare provider who specializes in infectious diseases or sexual health.",
-    "I apologize, but I can't provide specific HIV information at the moment. Please contact a healthcare professional for accurate guidance.",
-    "For questions about HIV testing, prevention, or treatment, please speak with a qualified healthcare provider who can address your specific concerns."
+    'For HIV-related questions, I recommend consulting with a healthcare provider who specializes in infectious diseases or sexual health.',
+    'I apologize, but I can\'t provide specific HIV information at the moment. Please contact a healthcare professional for accurate guidance.',
+    'For questions about HIV testing, prevention, or treatment, please speak with a qualified healthcare provider who can address your specific concerns.'
   ],
   std: [
-    "For questions about sexually transmitted infections, I recommend speaking with a healthcare provider who can provide accurate information and testing options.",
-    "I apologize, but I can't process your STI-related question right now. Please consult with a healthcare professional for proper guidance.",
-    "For concerns about sexually transmitted infections, it's important to speak with a qualified healthcare provider who can offer personalized advice and testing options."
+    'For questions about sexually transmitted infections, I recommend speaking with a healthcare provider who can provide accurate information and testing options.',
+    'I apologize, but I can\'t process your STI-related question right now. Please consult with a healthcare professional for proper guidance.',
+    'For concerns about sexually transmitted infections, it\'s important to speak with a qualified healthcare provider who can offer personalized advice and testing options.'
   ],
   prep: [
-    "For information about PrEP (Pre-Exposure Prophylaxis), please consult with a healthcare provider who can determine if it's appropriate for your situation.",
-    "I apologize, but I can't provide specific PrEP information at the moment. Please speak with a healthcare professional who specializes in HIV prevention.",
-    "For questions about PrEP, including eligibility, effectiveness, and side effects, please consult with a qualified healthcare provider."
+    'For information about PrEP (Pre-Exposure Prophylaxis), please consult with a healthcare provider who can determine if it\'s appropriate for your situation.',
+    'I apologize, but I can\'t provide specific PrEP information at the moment. Please speak with a healthcare professional who specializes in HIV prevention.',
+    'For questions about PrEP, including eligibility, effectiveness, and side effects, please consult with a qualified healthcare provider.'
   ],
   testing: [
-    "For information about HIV or STI testing, I recommend contacting a healthcare provider or local sexual health clinic for accurate guidance.",
-    "I apologize, but I can't provide specific testing information at the moment. Please consult with a healthcare professional about your testing options.",
-    "For questions about testing procedures, locations, or interpreting results, please speak with a qualified healthcare provider who can address your specific concerns."
+    'For information about HIV or STI testing, I recommend contacting a healthcare provider or local sexual health clinic for accurate guidance.',
+    'I apologize, but I can\'t provide specific testing information at the moment. Please consult with a healthcare professional about your testing options.',
+    'For questions about testing procedures, locations, or interpreting results, please speak with a qualified healthcare provider who can address your specific concerns.'
   ]
 };
 
 // Topic-specific fallback responses (Thai)
 const topicFallbackResponsesTH = {
   hiv: [
-    "สำหรับคำถามเกี่ยวกับเอชไอวี ฉันขอแนะนำให้ปรึกษากับผู้ให้บริการด้านสุขภาพที่เชี่ยวชาญด้านโรคติดเชื้อหรือสุขภาพทางเพศคะ/ครับ",
-    "ขออภัย แต่ฉันไม่สามารถให้ข้อมูลเฉพาะเกี่ยวกับเอชไอวีได้ในขณะนี้ โปรดติดต่อบุคลากรทางการแพทย์เพื่อขอคำแนะนำที่ถูกต้องคะ/ครับ",
-    "สำหรับคำถามเกี่ยวกับการตรวจเอชไอวี การป้องกัน หรือการรักษา โปรดปรึกษากับผู้ให้บริการด้านสุขภาพที่มีคุณสมบัติเหมาะสมซึ่งสามารถตอบข้อกังวลเฉพาะของคุณได้คะ/ครับ"
+    'สำหรับคำถามเกี่ยวกับเอชไอวี ฉันขอแนะนำให้ปรึกษากับผู้ให้บริการด้านสุขภาพที่เชี่ยวชาญด้านโรคติดเชื้อหรือสุขภาพทางเพศคะ/ครับ',
+    'ขออภัย แต่ฉันไม่สามารถให้ข้อมูลเฉพาะเกี่ยวกับเอชไอวีได้ในขณะนี้ โปรดติดต่อบุคลากรทางการแพทย์เพื่อขอคำแนะนำที่ถูกต้องคะ/ครับ',
+    'สำหรับคำถามเกี่ยวกับการตรวจเอชไอวี การป้องกัน หรือการรักษา โปรดปรึกษากับผู้ให้บริการด้านสุขภาพที่มีคุณสมบัติเหมาะสมซึ่งสามารถตอบข้อกังวลเฉพาะของคุณได้คะ/ครับ'
   ],
   std: [
-    "สำหรับคำถามเกี่ยวกับโรคติดต่อทางเพศสัมพันธ์ ฉันขอแนะนำให้ปรึกษากับผู้ให้บริการด้านสุขภาพที่สามารถให้ข้อมูลที่ถูกต้องและทางเลือกในการตรวจคะ/ครับ",
-    "ขออภัย แต่ฉันไม่สามารถประมวลผลคำถามเกี่ยวกับโรคติดต่อทางเพศสัมพันธ์ของคุณได้ในขณะนี้ โปรดปรึกษากับบุคลากรทางการแพทย์เพื่อขอคำแนะนำที่เหมาะสมคะ/ครับ",
-    "สำหรับข้อกังวลเกี่ยวกับโรคติดต่อทางเพศสัมพันธ์ เป็นสิ่งสำคัญที่จะต้องปรึกษากับผู้ให้บริการด้านสุขภาพที่มีคุณสมบัติเหมาะสมซึ่งสามารถให้คำแนะนำส่วนบุคคลและทางเลือกในการตรวจคะ/ครับ"
+    'สำหรับคำถามเกี่ยวกับโรคติดต่อทางเพศสัมพันธ์ ฉันขอแนะนำให้ปรึกษากับผู้ให้บริการด้านสุขภาพที่สามารถให้ข้อมูลที่ถูกต้องและทางเลือกในการตรวจคะ/ครับ',
+    'ขออภัย แต่ฉันไม่สามารถประมวลผลคำถามเกี่ยวกับโรคติดต่อทางเพศสัมพันธ์ของคุณได้ในขณะนี้ โปรดปรึกษากับบุคลากรทางการแพทย์เพื่อขอคำแนะนำที่เหมาะสมคะ/ครับ',
+    'สำหรับข้อกังวลเกี่ยวกับโรคติดต่อทางเพศสัมพันธ์ เป็นสิ่งสำคัญที่จะต้องปรึกษากับผู้ให้บริการด้านสุขภาพที่มีคุณสมบัติเหมาะสมซึ่งสามารถให้คำแนะนำส่วนบุคคลและทางเลือกในการตรวจคะ/ครับ'
   ],
   prep: [
-    "สำหรับข้อมูลเกี่ยวกับ PrEP (การป้องกันก่อนการสัมผัสเชื้อ) โปรดปรึกษากับผู้ให้บริการด้านสุขภาพที่สามารถพิจารณาว่าเหมาะสมกับสถานการณ์ของคุณหรือไม่คะ/ครับ",
-    "ขออภัย แต่ฉันไม่สามารถให้ข้อมูลเฉพาะเกี่ยวกับ PrEP ได้ในขณะนี้ โปรดปรึกษากับบุคลากรทางการแพทย์ที่เชี่ยวชาญด้านการป้องกันเอชไอวีคะ/ครับ",
-    "สำหรับคำถามเกี่ยวกับ PrEP รวมถึงคุณสมบัติ ประสิทธิภาพ และผลข้างเคียง โปรดปรึกษากับผู้ให้บริการด้านสุขภาพที่มีคุณสมบัติเหมาะสมคะ/ครับ"
+    'สำหรับข้อมูลเกี่ยวกับ PrEP (การป้องกันก่อนการสัมผัสเชื้อ) โปรดปรึกษากับผู้ให้บริการด้านสุขภาพที่สามารถพิจารณาว่าเหมาะสมกับสถานการณ์ของคุณหรือไม่คะ/ครับ',
+    'ขออภัย แต่ฉันไม่สามารถให้ข้อมูลเฉพาะเกี่ยวกับ PrEP ได้ในขณะนี้ โปรดปรึกษากับบุคลากรทางการแพทย์ที่เชี่ยวชาญด้านการป้องกันเอชไอวีคะ/ครับ',
+    'สำหรับคำถามเกี่ยวกับ PrEP รวมถึงคุณสมบัติ ประสิทธิภาพ และผลข้างเคียง โปรดปรึกษากับผู้ให้บริการด้านสุขภาพที่มีคุณสมบัติเหมาะสมคะ/ครับ'
   ],
   testing: [
-    "สำหรับข้อมูลเกี่ยวกับการตรวจเอชไอวีหรือโรคติดต่อทางเพศสัมพันธ์ ฉันขอแนะนำให้ติดต่อผู้ให้บริการด้านสุขภาพหรือคลินิกสุขภาพทางเพศในท้องถิ่นเพื่อขอคำแนะนำที่ถูกต้องคะ/ครับ",
-    "ขออภัย แต่ฉันไม่สามารถให้ข้อมูลเฉพาะเกี่ยวกับการตรวจได้ในขณะนี้ โปรดปรึกษากับบุคลากรทางการแพทย์เกี่ยวกับทางเลือกในการตรวจของคุณคะ/ครับ",
-    "สำหรับคำถามเกี่ยวกับขั้นตอนการตรวจ สถานที่ หรือการแปลผล โปรดปรึกษากับผู้ให้บริการด้านสุขภาพที่มีคุณสมบัติเหมาะสมซึ่งสามารถตอบข้อกังวลเฉพาะของคุณได้คะ/ครับ"
+    'สำหรับข้อมูลเกี่ยวกับการตรวจเอชไอวีหรือโรคติดต่อทางเพศสัมพันธ์ ฉันขอแนะนำให้ติดต่อผู้ให้บริการด้านสุขภาพหรือคลินิกสุขภาพทางเพศในท้องถิ่นเพื่อขอคำแนะนำที่ถูกต้องคะ/ครับ',
+    'ขออภัย แต่ฉันไม่สามารถให้ข้อมูลเฉพาะเกี่ยวกับการตรวจได้ในขณะนี้ โปรดปรึกษากับบุคลากรทางการแพทย์เกี่ยวกับทางเลือกในการตรวจของคุณคะ/ครับ',
+    'สำหรับคำถามเกี่ยวกับขั้นตอนการตรวจ สถานที่ หรือการแปลผล โปรดปรึกษากับผู้ให้บริการด้านสุขภาพที่มีคุณสมบัติเหมาะสมซึ่งสามารถตอบข้อกังวลเฉพาะของคุณได้คะ/ครับ'
   ]
 };
 
@@ -187,7 +187,7 @@ const getTopicSpecificResponse = (message, isEnglish) => {
  */
 const getRandomResponse = (responses) => {
   if (!responses || responses.length === 0) {
-    return "I'm sorry, I'm unable to provide a response at this time.";
+    return 'I\'m sorry, I\'m unable to provide a response at this time.';
   }
   
   const randomIndex = Math.floor(Math.random() * responses.length);

@@ -48,7 +48,7 @@ describe('AI Service', () => {
     const result = await generateResponse('Hello', mockContext);
     
     expect(result).toBe('Cached response');
-    expect(cacheService.get).toHaveBeenCalledWith(`ai:en:Hello`);
+    expect(cacheService.get).toHaveBeenCalledWith('ai:en:Hello');
     expect(openRouterService.generateResponse).not.toHaveBeenCalled();
     expect(deepSeekService.generateResponse).not.toHaveBeenCalled();
   });
@@ -59,7 +59,7 @@ describe('AI Service', () => {
     expect(result).toBe('OpenRouter response');
     expect(openRouterService.generateResponse).toHaveBeenCalledWith('Hello', mockContext, mockOptions);
     expect(deepSeekService.generateResponse).not.toHaveBeenCalled();
-    expect(cacheService.set).toHaveBeenCalledWith(`ai:en:Hello`, 'OpenRouter response');
+    expect(cacheService.set).toHaveBeenCalledWith('ai:en:Hello', 'OpenRouter response');
     
     const stats = getProviderStats();
     expect(stats.openRouter.calls).toBe(1);
@@ -75,7 +75,7 @@ describe('AI Service', () => {
     expect(result).toBe('DeepSeek response');
     expect(openRouterService.generateResponse).toHaveBeenCalledWith('Hello', mockContext, {});
     expect(deepSeekService.generateResponse).toHaveBeenCalledWith('Hello', mockContext, {});
-    expect(cacheService.set).toHaveBeenCalledWith(`ai:en:Hello`, 'DeepSeek response');
+    expect(cacheService.set).toHaveBeenCalledWith('ai:en:Hello', 'DeepSeek response');
     
     const stats = getProviderStats();
     expect(stats.openRouter.calls).toBe(1);
