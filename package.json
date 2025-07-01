@@ -10,7 +10,7 @@
     "test:coverage": "jest --coverage",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "build": "mkdir -p dist && cp -R src config .env package.json dist/",
+    "build": "mkdir -p dist && cp -R src config package.json dist/ && (cp .env dist/ 2>/dev/null || true)",
     "docker:build": "docker build -t line-oa-chatbot:latest .",
     "docker:run": "docker run -p 3000:3000 --env-file .env line-oa-chatbot:latest",
     "db:seed": "node scripts/seed.js",
