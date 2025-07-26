@@ -1,0 +1,74 @@
+{
+  "name": "bloodplusfight-line-chatbot",
+  "version": "2.0.0",
+  "type": "module",
+  "description": "Enhanced LINE chatbot with healthcare information for HIV/STDs deployed on Cloudflare Workers",
+  "main": "src/index-healthcare.js",
+  "scripts": {
+    "build": "echo 'Build completed - no transpilation needed for ES modules'",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "deploy:staging": "wrangler deploy --env staging",
+    "deploy:production": "wrangler deploy --env production",
+    "test": "vitest",
+    "test:watch": "vitest --watch",
+    "test:coverage": "vitest --coverage",
+    "test:healthcare": "vitest tests/healthcare.test.js",
+    "lint": "eslint src/ --ext .js",
+    "lint:fix": "eslint src/ --ext .js --fix",
+    "format": "prettier --write \"src/**/*.js\" \"tests/**/*.js\"",
+    "validate": "wrangler validate",
+    "db:migrate": "wrangler d1 execute line-chatbot-dev --file migrations/0001_initial_schema.sql && wrangler d1 execute line-chatbot-dev --file migrations/0002_analytics_schema.sql && wrangler d1 execute line-chatbot-dev --file migrations/0003_healthcare_schema.sql",
+    "db:migrate:staging": "wrangler d1 execute line-chatbot-staging --file migrations/0001_initial_schema.sql --env staging && wrangler d1 execute line-chatbot-staging --file migrations/0002_analytics_schema.sql --env staging && wrangler d1 execute line-chatbot-staging --file migrations/0003_healthcare_schema.sql --env staging",
+    "db:migrate:production": "wrangler d1 execute line-chatbot-production --file migrations/0001_initial_schema.sql --env production && wrangler d1 execute line-chatbot-production --file migrations/0002_analytics_schema.sql --env production && wrangler d1 execute line-chatbot-production --file migrations/0003_healthcare_schema.sql --env production",
+    "logs": "wrangler tail",
+    "logs:staging": "wrangler tail --env staging",
+    "logs:production": "wrangler tail --env production",
+    "analytics": "wrangler d1 execute line-chatbot-dev --command \"SELECT * FROM healthcare_analytics_summary LIMIT 10\"",
+    "analytics:staging": "wrangler d1 execute line-chatbot-staging --command \"SELECT * FROM healthcare_analytics_summary LIMIT 10\" --env staging",
+    "analytics:production": "wrangler d1 execute line-chatbot-production --command \"SELECT * FROM healthcare_analytics_summary LIMIT 10\" --env production",
+    "health-check": "curl -X GET \"https://bloodplusfight-line-chatbot.your-subdomain.workers.dev/health\"",
+    "setup:secrets": "./deploy.sh --setup-secrets development",
+    "setup:secrets:staging": "./deploy.sh --setup-secrets staging",
+    "setup:secrets:production": "./deploy.sh --setup-secrets production",
+    "validate:healthcare": "./deploy.sh --validate-healthcare"
+  },
+  "keywords": [
+    "line-bot",
+    "healthcare",
+    "hiv",
+    "std",
+    "medical-information",
+    "cloudflare-workers",
+    "serverless",
+    "privacy-compliant"
+  ],
+  "author": "Bloodplusfight Team",
+  "license": "MIT",
+  "dependencies": {
+    "@line/bot-sdk": "^8.0.0",
+    "hono": "^3.11.7"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20231025.0",
+    "@types/node": "^20.10.0",
+    "@vitest/coverage-v8": "^1.0.4",
+    "eslint": "^8.55.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-import": "^2.29.0",
+    "prettier": "^3.1.1",
+    "vitest": "^1.0.4",
+    "wrangler": "^4.26.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/khiwniti/Bloodplusfight-TH-chatbot-assistant.git"
+  },
+  "bugs": {
+    "url": "https://github.com/khiwniti/Bloodplusfight-TH-chatbot-assistant/issues"
+  },
+  "homepage": "https://github.com/khiwniti/Bloodplusfight-TH-chatbot-assistant#readme"
+}

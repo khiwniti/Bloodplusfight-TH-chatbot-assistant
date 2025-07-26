@@ -11,6 +11,8 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "build": "echo 'Build completed - Vercel handles deployment'",
+    "build:workers": "cd cloudflare-workers && npm install && npm run build",
+    "deploy:workers": "cd cloudflare-workers && npx wrangler deploy",
     "docker:build": "docker build -t line-oa-chatbot:latest .",
     "docker:run": "docker run -p 3000:3000 --env-file .env line-oa-chatbot:latest",
     "db:seed": "node scripts/seed.js",

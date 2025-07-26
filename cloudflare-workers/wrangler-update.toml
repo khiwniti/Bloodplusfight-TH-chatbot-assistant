@@ -1,0 +1,10 @@
+# Minimal config to update existing worker
+name = "bloodplus-line-oa-server"
+main = "src/index-healthcare.js"
+compatibility_date = "2024-01-15"
+compatibility_flags = ["nodejs_compat"]
+
+# Basic environment variables
+[vars]
+ENVIRONMENT = "production"
+LOG_LEVEL = "info"

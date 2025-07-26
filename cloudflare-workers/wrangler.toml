@@ -1,0 +1,211 @@
+# Optimized Wrangler Configuration for LINE Chatbot
+name = "line-chatbot-workers"
+main = "src/index-healthcare.js"
+compatibility_date = "2024-01-15"
+compatibility_flags = ["nodejs_compat"]
+
+# Workers AI binding
+[[ai]]
+binding = "WORKER_AI"
+
+# Performance and resource limits
+[limits]
+cpu_ms = 10000  # Maximum CPU time in milliseconds
+
+# Environment configurations
+[env.production]
+name = "line-chatbot-workers-prod"
+route = { pattern = "api.linebot.example.com/*", zone_name = "linebot.example.com" }
+
+[env.staging]
+name = "line-chatbot-workers-staging"
+route = { pattern = "staging-api.linebot.example.com/*", zone_name = "linebot.example.com" }
+
+[env.development]
+name = "line-chatbot-workers-dev"
+
+# Production Database Bindings
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "line-chatbot-prod"
+database_id = "your-production-d1-id"
+
+[[env.production.kv_namespaces]]
+binding = "KV"
+id = "your-production-kv-id"
+preview_id = "your-production-kv-preview-id"
+
+[[env.production.r2_buckets]]
+binding = "ASSETS"
+bucket_name = "line-chatbot-assets-prod"
+
+[[env.production.durable_objects.bindings]]
+name = "CHATBOT_DO"
+class_name = "ChatbotDurableObject"
+
+# Staging Database Bindings
+[[env.staging.d1_databases]]
+binding = "DB"
+database_name = "line-chatbot-staging"
+database_id = "your-staging-d1-id"
+
+[[env.staging.kv_namespaces]]
+binding = "KV"
+id = "your-staging-kv-id"
+preview_id = "your-staging-kv-preview-id"
+
+[[env.staging.r2_buckets]]
+binding = "ASSETS"
+bucket_name = "line-chatbot-assets-staging"
+
+[[env.staging.durable_objects.bindings]]
+name = "CHATBOT_DO"
+class_name = "ChatbotDurableObject"
+
+# Development Database Bindings
+[[env.development.d1_databases]]
+binding = "DB"
+database_name = "line-chatbot-dev"
+database_id = "your-dev-d1-id"
+migrations_dir = "./migrations"
+
+[[env.development.kv_namespaces]]
+binding = "KV"
+id = "your-dev-kv-id"
+preview_id = "your-dev-kv-preview-id"
+
+[[env.development.durable_objects.bindings]]
+name = "CHATBOT_DO"
+class_name = "ChatbotDurableObject"
+
+# Production environment variables
+[env.production.vars]
+ENVIRONMENT = "production"
+LOG_LEVEL = "info"
+LOG_FORMAT = "json"
+ENABLE_CACHE = "true"
+CACHE_TTL = "3600"
+AI_RESPONSE_TIMEOUT = "30000"
+MAX_MESSAGE_LENGTH = "2000"
+MAX_CONTEXT_SIZE = "7"
+RATE_LIMIT_WINDOW = "900"
+RATE_LIMIT_MAX = "100"
+ENABLE_RESEARCH = "true"
+RESEARCH_MAX_RESULTS = "3"
+RESEARCH_TIMEOUT = "5000"
+PRIMARY_AI_PROVIDER = "cloudflare"
+CLOUDFLARE_ACCOUNT_ID = "5adf62efd6cf179a8939c211b155e229"
+AI_MAX_TOKENS = "2000"
+AI_TEMPERATURE = "0.7"
+AI_TOP_P = "0.9"
+AI_MODEL = "@cf/meta/llama-3-8b-instruct"
+
+# Staging environment variables
+[env.staging.vars]
+ENVIRONMENT = "staging"
+LOG_LEVEL = "debug"
+LOG_FORMAT = "text"
+ENABLE_CACHE = "true"
+CACHE_TTL = "1800"
+AI_RESPONSE_TIMEOUT = "45000"
+MAX_MESSAGE_LENGTH = "2000"
+MAX_CONTEXT_SIZE = "10"
+RATE_LIMIT_WINDOW = "900"
+RATE_LIMIT_MAX = "200"
+ENABLE_RESEARCH = "true"
+RESEARCH_MAX_RESULTS = "5"
+RESEARCH_TIMEOUT = "8000"
+PRIMARY_AI_PROVIDER = "cloudflare"
+CLOUDFLARE_ACCOUNT_ID = "5adf62efd6cf179a8939c211b155e229"
+AI_MAX_TOKENS = "2000"
+AI_TEMPERATURE = "0.7"
+AI_TOP_P = "0.9"
+AI_MODEL = "@cf/meta/llama-3-8b-instruct"
+
+# Development environment variables
+[env.development.vars]
+ENVIRONMENT = "development"
+LOG_LEVEL = "debug"
+LOG_FORMAT = "text"
+ENABLE_CACHE = "false"
+CACHE_TTL = "300"
+AI_RESPONSE_TIMEOUT = "60000"
+MAX_MESSAGE_LENGTH = "3000"
+MAX_CONTEXT_SIZE = "15"
+RATE_LIMIT_WINDOW = "900"
+RATE_LIMIT_MAX = "1000"
+ENABLE_RESEARCH = "true"
+RESEARCH_MAX_RESULTS = "10"
+RESEARCH_TIMEOUT = "10000"
+PRIMARY_AI_PROVIDER = "cloudflare"
+CLOUDFLARE_ACCOUNT_ID = "5adf62efd6cf179a8939c211b155e229"
+AI_MAX_TOKENS = "3000"
+AI_TEMPERATURE = "0.8"
+AI_TOP_P = "0.9"
+AI_MODEL = "@cf/meta/llama-3-8b-instruct"
+
+# Secrets (set via wrangler secret put)
+# Production secrets
+# wrangler secret put CHANNEL_ACCESS_TOKEN --env production
+# wrangler secret put CHANNEL_SECRET --env production
+# wrangler secret put CLOUDFLARE_API_TOKEN --env production
+# wrangler secret put ADMIN_API_KEY --env production
+# wrangler secret put WEBHOOK_SECRET --env production
+
+# Staging secrets
+# wrangler secret put CHANNEL_ACCESS_TOKEN --env staging
+# wrangler secret put CHANNEL_SECRET --env staging
+# wrangler secret put CLOUDFLARE_API_TOKEN --env staging
+# wrangler secret put ADMIN_API_KEY --env staging
+# wrangler secret put WEBHOOK_SECRET --env staging
+
+# Development secrets
+# wrangler secret put CHANNEL_ACCESS_TOKEN --env development
+# wrangler secret put CHANNEL_SECRET --env development
+# wrangler secret put CLOUDFLARE_API_TOKEN --env development
+# wrangler secret put ADMIN_API_KEY --env development
+# wrangler secret put WEBHOOK_SECRET --env development
+
+# Cron Triggers for background tasks
+[[env.production.triggers.crons]]
+cron = "0 */6 * * *"  # Every 6 hours - cleanup old sessions
+[[env.production.triggers.crons]]
+cron = "0 0 * * *"   # Daily at midnight - generate analytics
+[[env.production.triggers.crons]]
+cron = "*/5 * * * *" # Every 5 minutes - health checks
+
+[[env.staging.triggers.crons]]
+cron = "0 */12 * * *" # Every 12 hours - cleanup
+[[env.staging.triggers.crons]]
+cron = "0 2 * * *"    # Daily at 2 AM - analytics
+
+# Analytics and monitoring
+[[env.production.analytics_engine_datasets]]
+binding = "ANALYTICS"
+dataset = "line_chatbot_analytics"
+
+[[env.staging.analytics_engine_datasets]]
+binding = "ANALYTICS"
+dataset = "line_chatbot_analytics_staging"
+
+# Hyperdrive for database acceleration (optional)
+# [[env.production.hyperdrive]]
+# binding = "HYPERDRIVE"
+# id = "your-hyperdrive-config-id"
+
+# Queue bindings for async processing
+[[env.production.queues.producers]]
+binding = "QUEUE"
+queue = "line-chatbot-tasks"
+
+[[env.production.queues.consumers]]
+queue = "line-chatbot-tasks"
+max_batch_size = 10
+max_batch_timeout = 30
+max_retries = 3
+dead_letter_queue = "line-chatbot-dlq"
+
+# Durable Object migrations
+[[migrations]]
+tag = "v1"
+new_classes = ["ChatbotDurableObject"]

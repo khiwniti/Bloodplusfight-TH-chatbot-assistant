@@ -1,0 +1,606 @@
+version: '3.8'
+
+services:
+  # API Gateway (NGINX)
+  api-gateway:
+    build:
+      context: ./infrastructure/api-gateway
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infrastructure/api-gateway/nginx.conf:/etc/nginx/nginx.conf
+      - ./infrastructure/api-gateway/conf.d:/etc/nginx/conf.d
+      - ./logs/nginx:/var/log/nginx
+    depends_on:
+      - line-bot-gateway
+      - ai-conversation
+      - customer-management
+      - product-catalog
+      - healthcare-research
+      - monitoring-admin
+      - cache-storage
+      - auth-security
+    networks:
+      - microservices-network
+    restart: unless-stopped
+
+  # 1. LINE Bot Gateway Service
+  line-bot-gateway:
+    build:
+      context: ./services/line-bot-gateway
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3000"
+    environment:
+      - NODE_ENV=production
+      - SERVICE_NAME=line-bot-gateway
+      - SERVICE_PORT=3000
+      - DATABASE_URL=${CONVERSATIONS_DB_URL}
+      - REDIS_URL=${REDIS_URL}
+      - MESSAGE_QUEUE_URL=${MESSAGE_QUEUE_URL}
+      - CHANNEL_ACCESS_TOKEN=${CHANNEL_ACCESS_TOKEN}
+      - CHANNEL_SECRET=${CHANNEL_SECRET}
+      - AI_SERVICE_URL=http://ai-conversation:3000
+      - CUSTOMER_SERVICE_URL=http://customer-management:3000
+      - AUTH_SERVICE_URL=http://auth-security:3000
+      - CACHE_SERVICE_URL=http://cache-storage:3000
+      - LOG_LEVEL=info
+    volumes:
+      - ./logs/line-bot-gateway:/app/logs
+    depends_on:
+      - conversations-db
+      - redis
+      - auth-security
+      - cache-storage
+    networks:
+      - microservices-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # 2. AI/Conversation Service
+  ai-conversation:
+    build:
+      context: ./services/ai-conversation
+      dockerfile: Dockerfile
+    ports:
+      - "3002:3000"
+    environment:
+      - NODE_ENV=production
+      - SERVICE_NAME=ai-conversation
+      - SERVICE_PORT=3000
+      - DATABASE_URL=${AI_SESSIONS_DB_URL}
+      - REDIS_URL=${REDIS_URL}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - DEEPSEEK_API_ENDPOINT=${DEEPSEEK_API_ENDPOINT}
+      - DEEPSEEK_API_MODEL=${DEEPSEEK_API_MODEL}
+      - DEEPSEEK_MAX_TOKENS=${DEEPSEEK_MAX_TOKENS}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - OPENROUTER_MODEL=${OPENROUTER_MODEL}
+      - PRIMARY_AI_PROVIDER=${PRIMARY_AI_PROVIDER}
+      - CUSTOMER_SERVICE_URL=http://customer-management:3000
+      - CACHE_SERVICE_URL=http://cache-storage:3000
+      - LOG_LEVEL=info
+    volumes:
+      - ./logs/ai-conversation:/app/logs
+    depends_on:
+      - ai-sessions-db
+      - redis
+      - cache-storage
+    networks:
+      - microservices-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # 3. Customer Management Service
+  customer-management:
+    build:
+      context: ./services/customer-management
+      dockerfile: Dockerfile
+    ports:
+      - "3003:3000"
+    environment:
+      - NODE_ENV=production
+      - SERVICE_NAME=customer-management
+      - SERVICE_PORT=3000
+      - DATABASE_URL=${CUSTOMERS_DB_URL}
+      - REDIS_URL=${REDIS_URL}
+      - MESSAGE_QUEUE_URL=${MESSAGE_QUEUE_URL}
+      - CACHE_SERVICE_URL=http://cache-storage:3000
+      - AUTH_SERVICE_URL=http://auth-security:3000
+      - ANALYTICS_ENABLED=true
+      - LOG_LEVEL=info
+    volumes:
+      - ./logs/customer-management:/app/logs
+    depends_on:
+      - customers-db
+      - redis
+      - cache-storage
+      - auth-security
+    networks:
+      - microservices-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # 4. Product Catalog Service
+  product-catalog:
+    build:
+      context: ./services/product-catalog
+      dockerfile: Dockerfile
+    ports:
+      - "3004:3000"
+    environment:
+      - NODE_ENV=production
+      - SERVICE_NAME=product-catalog
+      - SERVICE_PORT=3000
+      - DATABASE_URL=${PRODUCTS_DB_URL}
+      - REDIS_URL=${REDIS_URL}
+      - CACHE_SERVICE_URL=http://cache-storage:3000
+      - AUTH_SERVICE_URL=http://auth-security:3000
+      - ADMIN_API_KEY=${ADMIN_API_KEY}
+      - ENABLE_MULTILINGUAL=true
+      - LOG_LEVEL=info
+    volumes:
+      - ./logs/product-catalog:/app/logs
+    depends_on:
+      - products-db
+      - redis
+      - cache-storage
+      - auth-security
+    networks:
+      - microservices-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # 5. Healthcare/Research Service
+  healthcare-research:
+    build:
+      context: ./services/healthcare-research
+      dockerfile: Dockerfile
+    ports:
+      - "3005:3000"
+    environment:
+      - NODE_ENV=production
+      - SERVICE_NAME=healthcare-research
+      - SERVICE_PORT=3000
+      - DATABASE_URL=${RESEARCH_DB_URL}
+      - REDIS_URL=${REDIS_URL}
+      - ENABLE_RESEARCH=${ENABLE_RESEARCH}
+      - RESEARCH_MAX_RESULTS=${RESEARCH_MAX_RESULTS}
+      - RESEARCH_DEFAULT_LANG=${RESEARCH_DEFAULT_LANG}
+      - RESEARCH_TIMEOUT=${RESEARCH_TIMEOUT}
+      - AUTO_RESEARCH=${AUTO_RESEARCH}
+      - CACHE_SERVICE_URL=http://cache-storage:3000
+      - LOG_LEVEL=info
+    volumes:
+      - ./logs/healthcare-research:/app/logs
+    depends_on:
+      - research-db
+      - redis
+      - cache-storage
+    networks:
+      - microservices-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # 6. Monitoring/Admin Service
+  monitoring-admin:
+    build:
+      context: ./services/monitoring-admin
+      dockerfile: Dockerfile
+    ports:
+      - "3006:3000"
+    environment:
+      - NODE_ENV=production
+      - SERVICE_NAME=monitoring-admin
+      - SERVICE_PORT=3000
+      - DATABASE_URL=${METRICS_DB_URL}
+      - REDIS_URL=${REDIS_URL}
+      - ADMIN_API_KEY=${ADMIN_API_KEY}
+      - ENABLE_MONITORING=${ENABLE_MONITORING}
+      - ALERT_WEBHOOK_URL=${ALERT_WEBHOOK_URL}
+      - LOG_LEVEL=info
+      - METRICS_COLLECTION_INTERVAL=30
+    volumes:
+      - ./logs/monitoring-admin:/app/logs
+      - ./logs:/app/all-logs:ro
+    depends_on:
+      - metrics-db
+      - redis
+    networks:
+      - microservices-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # 7. Cache/Storage Service
+  cache-storage:
+    build:
+      context: ./services/cache-storage
+      dockerfile: Dockerfile
+    ports:
+      - "3007:3000"
+    environment:
+      - NODE_ENV=production
+      - SERVICE_NAME=cache-storage
+      - SERVICE_PORT=3000
+      - REDIS_URL=${REDIS_URL}
+      - ENABLE_CACHE=${ENABLE_CACHE}
+      - MEMORY_CACHE_TTL=${MEMORY_CACHE_TTL}
+      - ENABLE_PERSISTENT_CACHE=${ENABLE_PERSISTENT_CACHE}
+      - LOG_LEVEL=info
+    volumes:
+      - ./logs/cache-storage:/app/logs
+    depends_on:
+      - redis
+    networks:
+      - microservices-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # 8. Auth/Security Service
+  auth-security:
+    build:
+      context: ./services/auth-security
+      dockerfile: Dockerfile
+    ports:
+      - "3008:3000"
+    environment:
+      - NODE_ENV=production
+      - SERVICE_NAME=auth-security
+      - SERVICE_PORT=3000
+      - DATABASE_URL=${AUTH_DB_URL}
+      - REDIS_URL=${REDIS_URL}
+      - ADMIN_API_KEY=${ADMIN_API_KEY}
+      - RATE_LIMIT=${RATE_LIMIT}
+      - ENABLE_USAGE_LIMITS=${ENABLE_USAGE_LIMITS}
+      - DAILY_USER_LIMIT=${DAILY_USER_LIMIT}
+      - JWT_SECRET=${JWT_SECRET}
+      - LOG_LEVEL=info
+    volumes:
+      - ./logs/auth-security:/app/logs
+    depends_on:
+      - auth-db
+      - redis
+    networks:
+      - microservices-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Database Services
+  conversations-db:
+    image: mongo:latest
+    container_name: conversations-db
+    ports:
+      - "27017:27017"
+    volumes:
+      - conversations_data:/data/db
+      - ./infrastructure/mongodb/init-conversations.js:/docker-entrypoint-initdb.d/init-conversations.js
+    environment:
+      - MONGO_INITDB_DATABASE=conversations
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USERNAME}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
+    networks:
+      - microservices-network
+    restart: unless-stopped
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/conversations --quiet
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  ai-sessions-db:
+    image: mongo:latest
+    container_name: ai-sessions-db
+    ports:
+      - "27018:27017"
+    volumes:
+      - ai_sessions_data:/data/db
+      - ./infrastructure/mongodb/init-ai-sessions.js:/docker-entrypoint-initdb.d/init-ai-sessions.js
+    environment:
+      - MONGO_INITDB_DATABASE=ai_sessions
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USERNAME}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
+    networks:
+      - microservices-network
+    restart: unless-stopped
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/ai_sessions --quiet
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  customers-db:
+    image: mongo:latest
+    container_name: customers-db
+    ports:
+      - "27019:27017"
+    volumes:
+      - customers_data:/data/db
+      - ./infrastructure/mongodb/init-customers.js:/docker-entrypoint-initdb.d/init-customers.js
+    environment:
+      - MONGO_INITDB_DATABASE=customers
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USERNAME}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
+    networks:
+      - microservices-network
+    restart: unless-stopped
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/customers --quiet
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  products-db:
+    image: mongo:latest
+    container_name: products-db
+    ports:
+      - "27020:27017"
+    volumes:
+      - products_data:/data/db
+      - ./infrastructure/mongodb/init-products.js:/docker-entrypoint-initdb.d/init-products.js
+    environment:
+      - MONGO_INITDB_DATABASE=products
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USERNAME}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
+    networks:
+      - microservices-network
+    restart: unless-stopped
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/products --quiet
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  research-db:
+    image: mongo:latest
+    container_name: research-db
+    ports:
+      - "27021:27017"
+    volumes:
+      - research_data:/data/db
+      - ./infrastructure/mongodb/init-research.js:/docker-entrypoint-initdb.d/init-research.js
+    environment:
+      - MONGO_INITDB_DATABASE=research
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USERNAME}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
+    networks:
+      - microservices-network
+    restart: unless-stopped
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/research --quiet
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  metrics-db:
+    image: mongo:latest
+    container_name: metrics-db
+    ports:
+      - "27022:27017"
+    volumes:
+      - metrics_data:/data/db
+      - ./infrastructure/mongodb/init-metrics.js:/docker-entrypoint-initdb.d/init-metrics.js
+    environment:
+      - MONGO_INITDB_DATABASE=metrics
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USERNAME}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
+    networks:
+      - microservices-network
+    restart: unless-stopped
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/metrics --quiet
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  auth-db:
+    image: mongo:latest
+    container_name: auth-db
+    ports:
+      - "27023:27017"
+    volumes:
+      - auth_data:/data/db
+      - ./infrastructure/mongodb/init-auth.js:/docker-entrypoint-initdb.d/init-auth.js
+    environment:
+      - MONGO_INITDB_DATABASE=auth
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USERNAME}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
+    networks:
+      - microservices-network
+    restart: unless-stopped
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/auth --quiet
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # Redis for Caching and Message Queue
+  redis:
+    image: redis:alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+      - ./infrastructure/redis/redis.conf:/usr/local/etc/redis/redis.conf
+    command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      - microservices-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # Message Queue (Redis Pub/Sub or RabbitMQ alternative)
+  message-queue:
+    image: rabbitmq:management-alpine
+    container_name: message-queue
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+      - ./infrastructure/rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASS}
+      - RABBITMQ_DEFAULT_VHOST=/
+    networks:
+      - microservices-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Elasticsearch for Centralized Logging (Optional)
+  elasticsearch:
+    image: elasticsearch:8.8.0
+    container_name: elasticsearch
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    networks:
+      - microservices-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200/_cluster/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Kibana for Log Visualization (Optional)
+  kibana:
+    image: kibana:8.8.0
+    container_name: kibana
+    ports:
+      - "5601:5601"
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    depends_on:
+      - elasticsearch
+    networks:
+      - microservices-network
+    restart: unless-stopped
+
+  # Prometheus for Metrics (Optional)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infrastructure/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - microservices-network
+    restart: unless-stopped
+
+  # Grafana for Metrics Visualization (Optional)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infrastructure/grafana/provisioning:/etc/grafana/provisioning
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+    depends_on:
+      - prometheus
+    networks:
+      - microservices-network
+    restart: unless-stopped
+
+networks:
+  microservices-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  # Database volumes
+  conversations_data:
+  ai_sessions_data:
+  customers_data:
+  products_data:
+  research_data:
+  metrics_data:
+  auth_data:
+  
+  # Cache and messaging volumes
+  redis_data:
+  rabbitmq_data:
+  
+  # Monitoring and logging volumes
+  elasticsearch_data:
+  prometheus_data:
+  grafana_data:

@@ -1,0 +1,30 @@
+# Simplified Wrangler Configuration for initial deployment
+name = "line-chatbot-workers-dev"
+main = "src/index-healthcare.js"
+compatibility_date = "2024-01-15"
+compatibility_flags = ["nodejs_compat"]
+
+# Performance and resource limits
+[limits]
+cpu_ms = 10000
+
+# Basic environment variables for development
+[vars]
+ENVIRONMENT = "development"
+LOG_LEVEL = "debug"
+LOG_FORMAT = "text"
+ENABLE_CACHE = "false"
+CACHE_TTL = "300"
+AI_RESPONSE_TIMEOUT = "60000"
+MAX_MESSAGE_LENGTH = "3000"
+MAX_CONTEXT_SIZE = "15"
+RATE_LIMIT_WINDOW = "900"
+RATE_LIMIT_MAX = "1000"
+ENABLE_RESEARCH = "true"
+RESEARCH_MAX_RESULTS = "10"
+RESEARCH_TIMEOUT = "10000"
+PRIMARY_AI_PROVIDER = "deepseek"
+DEEPSEEK_MAX_TOKENS = "3000"
+DEEPSEEK_API_ENDPOINT = "https://api.deepseek.com/v1/chat/completions"
+DEEPSEEK_API_MODEL = "deepseek-chat"
+OPENROUTER_MODEL = "deepseek/deepseek-r1-0528:free"
