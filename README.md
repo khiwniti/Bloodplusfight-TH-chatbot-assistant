@@ -1,6 +1,20 @@
-# Line Official Account Chatbot
+# LINE Healthcare Chatbot - Bloodplusfight Assistant
 
-A LINE chatbot that provides product information and uses AI to enhance user experience. Built with Node.js, Express, MongoDB (with in-memory fallback), and caching for performance. Integrates with OpenRouter API using the deepseek-r1-0528 model for intelligent responses.
+A comprehensive LINE chatbot specializing in healthcare information about HIV/STDs with privacy compliance and multilingual support. Now available in multiple deployment options including **Python Serverless** on Cloudflare Workers.
+
+## 🚀 **NEW: Python Serverless Implementation**
+
+The chatbot has been migrated to **Python Serverless** on Cloudflare Workers for better performance, global edge deployment, and integrated AI capabilities.
+
+**🌐 Live Deployment**: `https://bloodplus-line-oa-server.getintheq.workers.dev/webhook`
+
+### Quick Start (Python Serverless)
+```bash
+cd python-serverless
+./deploy.sh
+```
+
+👉 **[Complete Python Serverless Setup Guide](PYTHON_SERVERLESS_SETUP.md)**
 
 ## Features
 

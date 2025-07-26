@@ -1,0 +1,3 @@
+# Python dependencies for Cloudflare Workers
+# Most standard library modules are available by default
+# Only add external dependencies if absolutely necessary

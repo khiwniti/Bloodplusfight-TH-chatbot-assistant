@@ -1,0 +1,51 @@
+# Cloudflare Workers Configuration for Python LINE Chatbot
+# This matches your existing deployment: bloodplus-line-oa-server.getintheq.workers.dev
+name = "bloodplus-line-oa-server"
+main = "main.py"
+compatibility_date = "2024-01-15"
+
+# Environment variables
+[vars]
+ENVIRONMENT = "production"
+AI_MODEL = "@cf/meta/llama-3-8b-instruct"
+AI_MAX_TOKENS = "2000"
+AI_TEMPERATURE = "0.7"
+CLOUDFLARE_ACCOUNT_ID = "5adf62efd6cf179a8939c211b155e229"
+
+# Workers AI binding (matches your Cloudflare dashboard configuration)
+[[ai]]
+binding = "WORKER_AI"
+
+# KV namespace for conversation storage (optional - uncomment and configure if needed)
+# [[kv_namespaces]]
+# binding = "CONVERSATIONS"
+# id = "your-kv-namespace-id"
+# preview_id = "your-kv-preview-id"
+
+# Performance settings
+[limits]
+cpu_ms = 30000
+
+# Secrets (set via wrangler secret put)
+# wrangler secret put CHANNEL_ACCESS_TOKEN
+# wrangler secret put CHANNEL_SECRET  
+# wrangler secret put CLOUDFLARE_API_TOKEN
+
+# Environment configurations for different stages
+[env.staging]
+name = "bloodplus-line-oa-server-staging"
+[env.staging.vars]
+ENVIRONMENT = "staging"
+AI_MODEL = "@cf/meta/llama-3-8b-instruct"
+AI_MAX_TOKENS = "2000"
+AI_TEMPERATURE = "0.7"
+CLOUDFLARE_ACCOUNT_ID = "5adf62efd6cf179a8939c211b155e229"
+
+[env.development]
+name = "bloodplus-line-oa-server-dev"
+[env.development.vars]
+ENVIRONMENT = "development"
+AI_MODEL = "@cf/meta/llama-3-8b-instruct"
+AI_MAX_TOKENS = "3000"
+AI_TEMPERATURE = "0.8"
+CLOUDFLARE_ACCOUNT_ID = "5adf62efd6cf179a8939c211b155e229"

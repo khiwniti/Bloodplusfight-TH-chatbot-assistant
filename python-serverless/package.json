@@ -1,0 +1,32 @@
+{
+  "name": "bloodplusfight-python-chatbot",
+  "version": "3.0.0",
+  "description": "LINE Healthcare Chatbot - Python Serverless Implementation",
+  "main": "main.py",
+  "scripts": {
+    "deploy": "./deploy.sh",
+    "test": "python test.py",
+    "logs": "wrangler tail",
+    "status": "wrangler status",
+    "dev": "wrangler dev"
+  },
+  "keywords": [
+    "line-bot",
+    "healthcare",
+    "hiv",
+    "prep",
+    "std",
+    "python",
+    "serverless",
+    "cloudflare-workers",
+    "ai"
+  ],
+  "author": "Bloodplusfight Team",
+  "license": "MIT",
+  "devDependencies": {
+    "wrangler": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
